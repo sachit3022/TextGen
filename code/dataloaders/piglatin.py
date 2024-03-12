@@ -1,19 +1,19 @@
-# pig_latin.py
+# piglatin.py
 
+import os
 import math
 import torch
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader, Dataset
 from collections import defaultdict
 
-__all__ = ['PigLatinData']
+__all__ = ['PigLatin']
 
-class PigLatinData(pl.LightningDataModule):
-    def __init__(self, args):
+class PigLatin(pl.LightningDataModule):
+    def __init__(self, data_dir, data_file, batch_size):
         super().__init__()
-        self.args = args
 
-        self.filename = args.data_file
+        self.batch_size = batch_size
+        self.filename = os.path.join(data_dir, data_file)
         source_lines, target_lines = self.read_pairs()
 
         # Filter lines
@@ -47,6 +47,9 @@ class PigLatinData(pl.LightningDataModule):
 
         self.val_dict = self.create_dict(line_pairs[math.floor(0.8 * len(line_pairs))+1:])
         self.train_dict = self.create_dict(line_pairs[0:math.floor(0.8 * len(line_pairs))])
+        
+        self.max_seq_len = 20
+        self.test = 'the air conditioning is working'
 
     def filter_lines(self, lines):
         """Filters lines to consist of only alphabetic characters or dashes "-".
@@ -119,10 +122,10 @@ class PigLatinData(pl.LightningDataModule):
         return [char_to_index[char] for char in s] + [end_token]  # Adds the end token to each index list
 
     def train_dataloader(self):
-        return self.get_batch_data(self.train_dict, self.args.batch_size)
+        return self.get_batch_data(self.train_dict, self.batch_size)
 
     def val_dataloader(self):
-        return self.get_batch_data(self.val_dict, self.args.batch_size)
+        return self.get_batch_data(self.val_dict, self.batch_size)
 
     def test_dataloader(self):
         return self.get_batch_data(self.train_dict, 1)

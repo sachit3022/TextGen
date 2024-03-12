@@ -1,0 +1,27 @@
+[Arguments]
+
+# dataset options
+dataset=PigLatin
+dataset_options={"data_dir": "data/", "data_file": "pig_latin_small.txt", "batch_size": 64}
+embedding = Embedding
+
+# model options
+model_type = Transformer
+model_options = {"hidden_size":64, "num_encoder_layers":2, "num_decoder_layers":2, "num_heads":4, "dropout":0.2}
+loss_type = CrossEntropyLoss
+
+# training options
+manual_seed = 0
+nepochs=80
+
+# optimizer options
+learning_rate=0.001
+optim_method=AdamW
+optim_options={"weight_decay": 0.01}
+scheduler_method=ReduceLROnPlateau
+scheduler_options={"factor": 0.5, "patience": 5, "threshold": 0.001, "min_lr": 1e-6}
+scheduler_monitor=val_loss
+
+# cpu/gpu settings
+ngpu = 0
+nthreads = 4
