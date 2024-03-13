@@ -16,7 +16,7 @@ class Transformer(nn.Module):
 
     def forward(self, inputs):
         """Forward pass of the Transformer.
-
+  
         Arguments:
             inputs: Input token indexes across a batch for all time steps in the sequence. (batch_size x seq_len x hidden_size)
 
@@ -197,6 +197,7 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         self.head_size = hidden_size // num_heads
         self.attention_type = attention_type
+        self.neg_inf  = float("Inf")
         if dropout is not None:
             self.dropout = nn.Dropout(dropout)
         else:
@@ -210,26 +211,34 @@ class MultiHeadAttention(nn.Module):
     def forward(self, queries, keys, values):
         
         if queries.dim() != 3:
-            queries = ...
+            #why would this be possible?    
+            queries = queries.unsqueeze(1)
+            keys = keys.unsqueeze(1)
+            values = values.unsqueeze(1)
+            raise ValueError("Input shape is not correct")
         
-        q = ...
-        k = ...
-        v = ..
+        q = self.Q(queries) 
+        q = q.view(q.shape[0],self.num_heads*self.hidden_size,self.head_size ).transpose(0,1)
+        k = self.K(keys)
+        k = q.view(k.shape[0],self.num_heads*self.hidden_size,self.head_size ).transpose(0,1)
+        v = self.V(values)
+        v = v.view(v.shape[0],self.num_heads*self.hidden_size,self.head_size ).transpose(0,1)
+
         
         scaling_factor = torch.rsqrt(torch.tensor(q.shape[-1], dtype= torch.float, device=queries.device))
         
-        attention = scaling_factor * ...
+        attention = scaling_factor * torch.bmm(q,k.transpose(1,2))
         
         if self.attention_type == 'causal_scaled_dot_attention':
-            mask = ...
-            attention[mask==0] = -1e7
+            mask = torch.tril(attention)
+            attention[mask==0] = -1*self.neg_inf
         
-        attention = ... # softmax
+        attention =F.softmax(attention,dim=-1)
         
         if self.dropout is not None:
             attention = self.dropout(attention)
         
-        context = ... # attention * values
+        context = ... #write this part
         context = ... # reorder dimensions to b x q x d
         return context
     
