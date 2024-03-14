@@ -15,7 +15,9 @@ if __name__ == '__main__':
     args = config.parse_args()
     pl.seed_everything(args.manual_seed)
     callbacks = [cbs.RichProgressBar()]
+    print("starting main")
     
+    print(args.dataset)
     if args.save_results:
         logger = TensorBoardLogger(
             save_dir=args.logs_dir,

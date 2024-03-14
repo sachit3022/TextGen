@@ -76,15 +76,15 @@ where, $d$ is the dimension of the query, and $\mathbf{W}_v$ is the weight matri
 
 Change `hidden_size` in the config file to 32 and then run:
 
-`python3 main.py --config exps/args_piglatin_small_transformer.py`
+`python3 main.py --config exps/args_piglatin_small_transformer.txt`
 
-`python3 main.py --config exps/args_piglatin_large_transformer.py`
+`python3 main.py --config exps/args_piglatin_large_transformer.txt`
 
 Change `hidden_size` in the config file to 64 and then run:
 
-`python3 main.py --config exps/args_piglatin_small_transformer.py`
+`python3 main.py --config exps/args_piglatin_small_transformer.txt`
 
-`python3 main.py --config exps/args_piglatin_large_transformer.py`
+`python3 main.py --config exps/args_piglatin_large_transformer.txt`
 
 Run these experiments and report the effects of increasing hidden size and dataset size. In particular, how does the model's generalization change with model/dataset size? Are these results what you would expect? In your report, include plots comparing the training and validation losses for the four runs.
 

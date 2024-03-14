@@ -56,7 +56,7 @@ class TransformerEncoder(nn.Module):
                                     nn.Linear(hidden_size, hidden_size),
                                  ) for i in range(self.num_layers)])
 
-        self.positional_encodings = create_positional_encodings(hidden_size)
+        self.register_buffer('positional_encodings', create_positional_encodings(hidden_size))
 
     def forward(self, inputs):
         """Forward pass of the encoder Transformer.
@@ -75,7 +75,7 @@ class TransformerEncoder(nn.Module):
 
         # Add positional embeddings from create_positional_encodings. (a'la https://arxiv.org/pdf/1706.03762.pdf, section 3.5)
         
-        encoded = inputs + self.positional_encodings # add the positional encodings to the inputs
+        encoded = inputs + self.positional_encodings[:seq_len,:] # add the positional encodings to the inputs
 
         annotations = encoded
 
@@ -91,13 +91,15 @@ class TransformerEncoder(nn.Module):
             annotations = annotations + self.dropout1[i](new_annotations)
             
             # 3. normalization layer
-            new_annotations = self.norm2(annotations)
+            new_annotations = self.norm2[i](annotations)
             
             # 4. feed forward layer
             new_annotations = self.attention_mlps[i](new_annotations)
             
             # skip connection with dropout
-            annotations = annotations + self.dropout2(new_annotations)
+            annotations = annotations + self.dropout2[i](new_annotations)
+
+            
         # ------------
         # FILL THIS IN - END
         # ------------
@@ -128,7 +130,7 @@ class TransformerDecoder(nn.Module):
             ) for i in range(self.num_layers)])
 
         self.encoder_attentions = nn.ModuleList([MultiHeadAttention(
-            hidden_size, num_heads, 'enc_dec', dropout
+            hidden_size, num_heads, 'scaled_dot_attention', dropout
                                  ) for i in range(self.num_layers)])
         
         self.attention_mlps = nn.ModuleList([nn.Sequential(
@@ -137,7 +139,9 @@ class TransformerDecoder(nn.Module):
                                     nn.Dropout(dropout),
                                     nn.Linear(hidden_size, hidden_size),
                                  ) for i in range(self.num_layers)])
-        self.positional_encodings = create_positional_encodings(hidden_size)
+        
+        self.register_buffer('positional_encodings', create_positional_encodings(hidden_size))
+
 
 
     def forward(self, inputs, annotations):
@@ -151,8 +155,9 @@ class TransformerDecoder(nn.Module):
             output: Un-normalized scores for each token in the vocabulary, across a batch for all the decoding time steps. (batch_size x decoder_seq_len x vocab_size)
             attentions: The stacked attention weights applied to the encoder annotations (batch_size x encoder_seq_len x decoder_seq_len)
         """
-
-        contexts = inputs + self.positional_encodings # add the positional encodings to the inputs
+        batch_size, seq_len, hidden_size = inputs.size()
+        
+        contexts = inputs +  self.positional_encodings[:seq_len,:] # add the positional encodings to the inputs
 
         for i in range(self.num_layers):
             # ------------
@@ -163,7 +168,7 @@ class TransformerDecoder(nn.Module):
             new_contexts = self.self_attentions[i](contexts,contexts,contexts) # batch_size x seq_len x hidden_size
             
             # 2. skip connection with dropout
-            contexts = contexts + self.dropout1(new_contexts)
+            contexts = contexts + self.dropout1[i](new_contexts)
             
             # 3. normalization layer
             contexts = self.norm1[i](contexts)
@@ -173,7 +178,7 @@ class TransformerDecoder(nn.Module):
             new_contexts = self.encoder_attentions[i](contexts,annotations,annotations)  # batch_size x seq_len x hidden_size
             
             # 5. skip connection with dropout
-            contexts = contexts + self.dropout2(new_contexts)
+            contexts = contexts + self.dropout2[i](new_contexts)
             
             # 6. normalization layer
             contexts = self.norm2[i](contexts)
@@ -182,7 +187,7 @@ class TransformerDecoder(nn.Module):
             new_contexts = self.attention_mlps[i](contexts)
             
             # 8. skip connection with dropout
-            contexts = contexts + self.dropout3(new_contexts)
+            contexts = contexts + self.dropout3[i](new_contexts)
             
             # 9. normalization layer
             contexts = self.norm3[i](contexts)
@@ -213,44 +218,46 @@ class MultiHeadAttention(nn.Module):
         self.Q = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.K = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.V = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
-        self.O = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        #self.O = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         
     def forward(self, queries, keys, values):
 
-        batch_size, context_len, hidden_dim = queries.shape
+        q_batch_size, q_context_len, q_hidden_dim = queries.shape
+        kv_batch_size, kv_context_len, kv_hidden_dim = keys.shape
+        assert q_batch_size == kv_batch_size
+        
         
 
         q = self.Q(queries)
-        q = q.transpose(0,1).contiguous().view(context_len,batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
+        q = q.transpose(0,1).contiguous().view(q_context_len,q_batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
         
-        if self.attention_type == "enc_dec":
-            q = repeat(q,'b c d -> b c i d',i=keys.shape[1])
 
         k = self.K(keys)
-        k = k.transpose(0,1).contiguous().view(context_len,batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
+        k = k.transpose(0,1).contiguous().view(kv_context_len,kv_batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
 
         v = self.V(values)
-        v = v.transpose(0,1).contiguous().view(context_len,batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
+        v = v.transpose(0,1).contiguous().view(kv_context_len,kv_batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
 
         
         scaling_factor = torch.rsqrt(torch.tensor(q.shape[-1], dtype= torch.float, device=queries.device))
-        
-        attention = scaling_factor * torch.bmm(q,k.transpose(-2,-1)) # B X C X C # B X C X C_i X C_i  
+
+        attention = scaling_factor * torch.bmm(q,k.transpose(-2,-1)) # B X C X C 
         
         if self.attention_type == 'causal_scaled_dot_attention':
             mask = torch.tril(attention)
             attention[mask==0] = -1*self.neg_inf
         
-        attention =F.softmax(attention,dim=-1)  # B X C X C # B X C X C_i X C_i 
+        attention =F.softmax(attention,dim=-1)  # B X C X C 
         
         if self.dropout is not None:
             attention = self.dropout(attention) 
         
         context = torch.bmm(attention,v) # (B H) X C X C  *  (B H) X C X d -> (B H) X C X d  
-         # (B H) X C X C_i X C_i * (B H) X C_i X d -> (B H) X C X C_i X d
-        if self.attention_type == "enc_dec":
-            context = context.sum(dim=-2)
-        context = context.view(batch_size,context_len,hidden_dim) # reorder dimensions to b x q x d
+        
+
+        context = context.view(q_batch_size,q_context_len,q_hidden_dim) # reorder dimensions to b x q x d
+
+
         return context
     
 def create_positional_encodings(hidden_size, max_seq_len=1000):
