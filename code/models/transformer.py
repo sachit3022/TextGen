@@ -209,7 +209,7 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         self.head_size = hidden_size // num_heads
         self.attention_type = attention_type
-        self.neg_inf  = float("Inf")
+        self.neg_inf  = -float("Inf")
         if dropout is not None:
             self.dropout = nn.Dropout(dropout)
         else:
@@ -229,14 +229,14 @@ class MultiHeadAttention(nn.Module):
         
 
         q = self.Q(queries)
-        q = q.transpose(0,1).contiguous().view(q_context_len,q_batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
+        q = q.transpose(0,1).contiguous().view(q_context_len,q_batch_size*self.num_heads,self.head_size).transpose(0,1).contiguous()
         
 
         k = self.K(keys)
-        k = k.transpose(0,1).contiguous().view(kv_context_len,kv_batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
+        k = k.transpose(0,1).contiguous().view(kv_context_len,kv_batch_size*self.num_heads,self.head_size).transpose(0,1).contiguous() 
 
         v = self.V(values)
-        v = v.transpose(0,1).contiguous().view(kv_context_len,kv_batch_size*self.num_heads,self.head_size).transpose(0,1) #view(q.shape[0]*self.num_heads, self.hidden_size,self.head_size )
+        v = v.transpose(0,1).contiguous().view(kv_context_len,kv_batch_size*self.num_heads,self.head_size).transpose(0,1).contiguous()
 
         
         scaling_factor = torch.rsqrt(torch.tensor(q.shape[-1], dtype= torch.float, device=queries.device))
@@ -245,17 +245,16 @@ class MultiHeadAttention(nn.Module):
         
         if self.attention_type == 'causal_scaled_dot_attention':
             mask = torch.tril(attention)
-            attention[mask==0] = -1*self.neg_inf
+            attention[mask==0] = self.neg_inf
         
         attention =F.softmax(attention,dim=-1)  # B X C X C 
+
         
         if self.dropout is not None:
             attention = self.dropout(attention) 
-        
+            
         context = torch.bmm(attention,v) # (B H) X C X C  *  (B H) X C X d -> (B H) X C X d  
-        
-
-        context = context.view(q_batch_size,q_context_len,q_hidden_dim) # reorder dimensions to b x q x d
+        context =context.transpose(1,0).contiguous().view(q_context_len,q_batch_size,q_hidden_dim).transpose(1,0) # reorder dimensions to b x q x d
 
 
         return context

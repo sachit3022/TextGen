@@ -36,9 +36,11 @@ class Seq2Seq(pl.LightningModule):
         })
 
     def training_step(self, batch, _):
+        
+        self.model.train()
         inputs, targets = batch
         batch_size = inputs.size(0)
-            
+
         start_token = torch.ones(batch_size, device=self.device).long().unsqueeze(1) * self.data_prop['start_token']  # BS x 1 --> 16x1  CHECKED        
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(inputs)
@@ -56,13 +58,15 @@ class Seq2Seq(pl.LightningModule):
         
         outputs_flatten = self.output(outputs_flatten)
         targets_flatten = targets.view(-1)
-
+        
         loss = self.loss(outputs_flatten, targets_flatten)
         self.log('train_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True)
 
         return loss
 
     def validation_step(self, batch, _):
+        self.model.eval()
+        
         inputs, targets = batch
         batch_size = inputs.size(0)
                 
@@ -80,16 +84,21 @@ class Seq2Seq(pl.LightningModule):
             outputs = self.model(annotations)
             outputs = outputs[:, -targets.size(1):, :]
             outputs_flatten = outputs.reshape(-1, outputs.size(2))
+            
         
         outputs_flatten = self.output(outputs_flatten)
         targets_flatten = targets.view(-1)
 
+
         loss = self.loss(outputs_flatten, targets_flatten)
         self.log('val_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True)
+
+
         return loss
 
     def on_validation_epoch_end(self):
         gen = self.generate_sequence(self.test)
+        print(self.test,gen)
         if isinstance(self.test, str):
             self.logger.experiment.add_text(self.test, gen, global_step=self.current_epoch)
         else:
@@ -102,28 +111,32 @@ class Seq2Seq(pl.LightningModule):
 
     def generate_sequence(self, sentence):
         if isinstance(sentence, str):
-            return ' '.join([self.translate(word) for word in sentence.split()])
+            output= ' '.join([self.translate(word) for word in sentence.split()])
+            
+            return output
 
     def translate(self, word):
+        self.model.eval()
         gen_string = ''
         indexes = torch.Tensor(self.string_to_index_list(word)).long().to(self.device).unsqueeze(0)
+       
         start_token = torch.Tensor([[self.data_prop['start_token']]]).long().to(self.device) # For BS = 1
-        
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(indexes)
             encoder_annotations = self.model.encoder(embedded)
-            decoder_inputs = indexes
+            decoder_inputs = start_token 
             for i in range(self.max_generated_chars):
                 ## slow decoding, recompute everything at each time
-                decoder_inputs = self.embedding(decoder_inputs)
-                decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
+               
+                decoder_emb = self.embedding(decoder_inputs)
+                decoder_outputs = self.model.decoder(decoder_emb, encoder_annotations)
                 output = self.output(decoder_outputs)
-
+                
                 generated_words = F.softmax(output, dim=2).max(2)[1]
                 ni = generated_words.cpu().numpy().reshape(-1)  # LongTensor of size 1
                 ni = ni[-1] #latest output token
 
-                decoder_inputs = torch.cat([start_token, generated_words], dim=1)
+                decoder_inputs = torch.cat([decoder_inputs, generated_words[:,-1:]], dim=1)
                 if ni == self.data_prop['end_token']:
                     break
                 else:
@@ -151,7 +164,7 @@ class Seq2Seq(pl.LightningModule):
                     gen_string = ''.join(
                         [self.data_prop['index_to_char'][int(item)]
                         for item in generated_words.cpu().numpy().reshape(-1)])
-        
+       
         return gen_string
 
     def configure_optimizers(self):
