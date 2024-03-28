@@ -134,9 +134,9 @@ $y(t) = Ch(t) + Dx(t)$​
 
 Change `hidden_size` in the config file to 32 and then run:
 
-`python3 main.py --config exps/args_piglatin_small_mamba.py`
+`python3 main.py --config exps/args_piglatin_small_transformer.text`
 
-`python3 main.py --config exps/args_piglatin_large_mamba.py`
+`python3 main.py --config exps/args_piglatin_large_transformer.text`
 
 Change `hidden_size` in the config file to 64 and then run:
 

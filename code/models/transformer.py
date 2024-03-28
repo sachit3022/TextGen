@@ -140,6 +140,7 @@ class TransformerDecoder(nn.Module):
                                     nn.Linear(hidden_size, hidden_size),
                                  ) for i in range(self.num_layers)])
         
+        
         self.register_buffer('positional_encodings', create_positional_encodings(hidden_size))
 
 
@@ -218,7 +219,7 @@ class MultiHeadAttention(nn.Module):
         self.Q = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.K = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.V = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
-        #self.O = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        self.O = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         
     def forward(self, queries, keys, values):
 
@@ -255,7 +256,7 @@ class MultiHeadAttention(nn.Module):
             
         context = torch.bmm(attention,v) # (B H) X C X C  *  (B H) X C X d -> (B H) X C X d  
         context =context.transpose(1,0).contiguous().view(q_context_len,q_batch_size,q_hidden_dim).transpose(1,0) # reorder dimensions to b x q x d
-
+        context = self.O(context)
 
         return context
     

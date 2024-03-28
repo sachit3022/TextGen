@@ -3,8 +3,12 @@
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
-
 import models
+
+
+
+
+
 
 class Seq2Seq(pl.LightningModule):
     def __init__(self, args, dataloader):
@@ -16,12 +20,17 @@ class Seq2Seq(pl.LightningModule):
             self.test_dataloader = dataloader.test_dataloader
             self.train_dataloader = dataloader.train_dataloader
 
+
+
         self.vocab_size = dataloader.vocab_size
         self.hidden_size = args.model_options['hidden_size']
         
         self.embedding = getattr(torch.nn, args.embedding)(self.vocab_size, self.hidden_size)
         self.model = getattr(models, args.model_type)(**args.model_options)
-        self.output = torch.nn.Linear(self.hidden_size, self.vocab_size)
+        self.output = torch.nn.Linear(self.hidden_size, self.vocab_size,bias=False)
+        if not  hasattr(self.model, 'encoder'): # this is for SSM to tie weights
+            self.output.weight =self.embedding.weight 
+
         self.loss = getattr(torch.nn, args.loss_type)(**args.loss_options)
 
         self.data_prop = dataloader.idx_dict
@@ -34,12 +43,21 @@ class Seq2Seq(pl.LightningModule):
             "hp/metric_lr": self.args.learning_rate,
             "hp/metric_hs": self.hidden_size,
         })
+    def on_after_backward(self):
+        global_step = self.global_step
+        for name, param in self.model.named_parameters():
+            #self.logger.experiment.add_histogram(name, param, global_step)
+            if param.requires_grad :
+                pass
+                #self.logger.experiment.add_histogram(f"{name}_grad", param.grad, global_step)
 
     def training_step(self, batch, _):
         
         self.model.train()
         inputs, targets = batch
         batch_size = inputs.size(0)
+        #print("train",batch_size)
+        
 
         start_token = torch.ones(batch_size, device=self.device).long().unsqueeze(1) * self.data_prop['start_token']  # BS x 1 --> 16x1  CHECKED        
         if hasattr(self.model, 'encoder'): # this is for transformer
@@ -54,17 +72,24 @@ class Seq2Seq(pl.LightningModule):
             annotations = self.embedding(all)
             outputs = self.model(annotations)
             outputs = outputs[:, -targets.size(1):, :]
+
             outputs_flatten = outputs.reshape(-1, outputs.size(2))
         
         outputs_flatten = self.output(outputs_flatten)
         targets_flatten = targets.view(-1)
         
         loss = self.loss(outputs_flatten, targets_flatten)
-        self.log('train_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True)
+        
+        self.log('train_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True,batch_size=targets_flatten.size(0))
+
+        #acc = self.accuracy_batch(batch,_)
+        #self.log('train_acc',  acc, prog_bar=True, on_step=False, on_epoch=True, logger=True)
+
 
         return loss
 
     def validation_step(self, batch, _):
+
         self.model.eval()
         
         inputs, targets = batch
@@ -78,6 +103,9 @@ class Seq2Seq(pl.LightningModule):
             decoder_inputs = self.embedding(decoder_inputs)
             decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
             outputs_flatten = decoder_outputs.view(-1, decoder_outputs.size(2))
+
+
+
         else: # this is for SSM
             all = torch.cat([inputs, start_token, targets[:, :-1]], dim=1)
             annotations = self.embedding(all)
@@ -89,12 +117,16 @@ class Seq2Seq(pl.LightningModule):
         outputs_flatten = self.output(outputs_flatten)
         targets_flatten = targets.view(-1)
 
+       # acc = self.accuracy_batch(batch,_)
+
 
         loss = self.loss(outputs_flatten, targets_flatten)
-        self.log('val_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True)
-
+        
+        self.log('val_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True,batch_size=targets_flatten.size(0))
+        #self.log('val_acc',  acc, prog_bar=True, on_step=False, on_epoch=True, logger=True)
 
         return loss
+
 
     def on_validation_epoch_end(self):
         gen = self.generate_sequence(self.test)
@@ -115,12 +147,101 @@ class Seq2Seq(pl.LightningModule):
             
             return output
 
+    def accuracy_batch(self,batch,_):
+        
+        self.model.eval()
+        inputs, targets = batch
+        max_context_len = targets.size(-1)
+        batch_size = inputs.size(0)        
+        acc = 0
+        start_token = torch.ones(batch_size, device=self.device).long().unsqueeze(1) * self.data_prop['start_token']  # BS x 1 --> 16x1  CHECKED        
+        
+        if hasattr(self.model, 'encoder'): # this is for transformer
+            embedded = self.embedding(inputs)
+            encoder_annotations = self.model.encoder(embedded)
+            decoder_inputs = start_token
+ 
+                ## slow decoding, recompute everything at each time
+            for i in range(max_context_len):
+                decoder_emb = self.embedding(decoder_inputs)
+                decoder_outputs = self.model.decoder(decoder_emb, encoder_annotations)
+                output = self.output(decoder_outputs)
+                
+                generated_words = output.max(2)[1]
+                decoder_inputs = torch.cat([decoder_inputs, generated_words[:,-1:]], dim=1)
+                
+                end_token_reached = decoder_inputs[:,-1] == self.data_prop['end_token']
+                
+                if decoder_inputs.size(-1)-1 == targets.size(-1):
+                    acc += (decoder_inputs[end_token_reached,1:] == targets[end_token_reached,:]).all(dim=-1).sum().item()
+    
+                decoder_inputs = decoder_inputs[~ end_token_reached]
+                encoder_annotations = encoder_annotations[~ end_token_reached]
+                targets = targets[~end_token_reached]
+                if not decoder_inputs.size(0):
+                    break
+            
+            
+            if False and decoder_inputs.size(0) and (self.current_epoch>60 and self.current_epoch%10==0):
+   
+                
+                gen_string = "".join(
+                        [self.data_prop['index_to_char'][int(item)]
+                        for item in decoder_inputs.cpu().numpy().reshape(-1)])
+                gen_words = gen_string.split('SOS')[1:]
+                
+
+                target_string = "".join(
+                        [self.data_prop['index_to_char'][int(item)]
+                        for item in targets.cpu().numpy().reshape(-1)])
+                target_words = target_string.split('EOS')[:-1]
+
+
+                for s,t in zip(gen_words,target_words):
+                    self.logger.experiment.add_text(t, s, global_step=self.current_epoch)
+    
+
+        return acc/batch_size
+
+                
+    def old_translate(self, word):
+        gen_string = ''
+        indexes = torch.Tensor(self.string_to_index_list(word)).long().to(self.device).unsqueeze(0)
+        start_token = torch.Tensor([[self.data_prop['start_token']]]).long().to(self.device) # For BS = 1
+        
+        if hasattr(self.model, 'encoder'): # this is for transformer
+            embedded = self.embedding(indexes)
+            encoder_annotations = self.model.encoder(embedded)
+            decoder_inputs = indexes
+            for i in range(self.max_generated_chars):
+                ## slow decoding, recompute everything at each time
+                decoder_inputs = self.embedding(decoder_inputs)
+                decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
+                output = self.output(decoder_outputs)
+
+                generated_words = F.softmax(output, dim=2).max(2)[1]
+                ni = generated_words.cpu().numpy().reshape(-1)  # LongTensor of size 1
+                ni = ni[-1] #latest output token
+
+                decoder_inputs = torch.cat([start_token, generated_words], dim=1)
+                if ni == self.data_prop['end_token']:
+                    break
+                else:
+                    gen_string = "".join(
+                        [self.data_prop['index_to_char'][int(item)]
+                        for item in generated_words.cpu().numpy().reshape(-1)])    
+        return gen_string     
+                
+
     def translate(self, word):
+
+        #auto regressive translation.
         self.model.eval()
         gen_string = ''
         indexes = torch.Tensor(self.string_to_index_list(word)).long().to(self.device).unsqueeze(0)
        
         start_token = torch.Tensor([[self.data_prop['start_token']]]).long().to(self.device) # For BS = 1
+
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(indexes)
             encoder_annotations = self.model.encoder(embedded)
@@ -151,7 +272,6 @@ class Seq2Seq(pl.LightningModule):
                 decoder_inputs = self.embedding(decoder_inputs)
                 decoder_outputs = self.model(decoder_inputs)
                 output = self.output(decoder_outputs)[:, all.size(1)-1:, :]
-                # output = self.output(decoder_outputs)
 
                 generated_words = F.softmax(output, dim=2).max(2)[1]
                 ni = generated_words.cpu().numpy().reshape(-1)  # LongTensor of size 1
@@ -182,3 +302,4 @@ class Seq2Seq(pl.LightningModule):
             out['monitor'] = self.args.scheduler_monitor
         
         return out
+

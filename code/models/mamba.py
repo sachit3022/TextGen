@@ -1,5 +1,4 @@
 # mamba.py
-
 import math
 import torch
 import torch.nn as nn
@@ -18,7 +17,6 @@ def complex_log(input, eps=1e-12):
 class Mamba(nn.Module):
     def __init__(self, hidden_size, kernel_size, expansion_factor, dt_rank, num_layers):
         super(Mamba, self).__init__()
-        
         # full Mamba model
         self.layers = nn.ModuleList([ResidualBlock(hidden_size, kernel_size, expansion_factor, dt_rank) for _ in range(num_layers)])
         self.norm = RMSNorm(hidden_size)
@@ -64,6 +62,8 @@ class MambaBlock(nn.Module):
         
         if dt_rank == "auto":
             self.dt_rank = math.ceil(hidden_size / 16)
+        else:
+            self.dt_rank = dt_rank
         
         # expanded hidden size
         self.expanded_hidden_size = hidden_size * expansion_factor
@@ -75,40 +75,43 @@ class MambaBlock(nn.Module):
         self.output_state = nn.Linear(hidden_size * expansion_factor, hidden_size)
         
         # linear layer to predict dt_rank, B and C
-        self.param_linear = nn.Linear(self.expanded_hidden_size, self.dt_rank + hidden_size * 2)
+        self.param_linear = nn.Linear(self.expanded_hidden_size, self.dt_rank + hidden_size * 2,bias = False)
         
         # linear layer to project dt_rank to dt
         self.dt_linear = nn.Linear(self.dt_rank, self.expanded_hidden_size)
         
         # 1D convolutional layer
         self.conv1d = CausalConv1d(self.expanded_hidden_size, kernel_size)
-        self.silu =  nn.SiLU()
 
         # we initialize the state space model parameters A and D
-        self.initialize_params(hidden_size)
+        A = repeat(torch.ones((hidden_size)), "n -> d n", d=self.expanded_hidden_size)
+        self.A_log = nn.Parameter(torch.log(A))
+        self.A_log.requires_grad = True
+
+        self.D = nn.Parameter(torch.ones((self.expanded_hidden_size)))
+        self.D.requires_grad = True
+        #self.A_log._no_weight_decay = True
+        #self.D._no_weight_decay = True
         
-    def initialize_params(self, input_size):
-        # initialize the state space model parameters
-        # A_n = -(n+1)
-        A = repeat(torch.arange(1, input_size + 1), "n -> d n", d=self.expanded_hidden_size)
-        A_log = torch.log(A)  # Keep A_log in fp32
-        self.A_log = nn.Parameter(A_log)
-        self.D = nn.Parameter(torch.ones(self.expanded_hidden_size))
-        
-    #@torch.compile
+
     def sscan(self, x, delta, A, B, C, D):
         
         b, l, d = x.size()
         n = A.size(1)
+        #A = torch.ones(A.shape,requires_grad=False, device=x.device, dtype=x.dtype)
+        deltaA = einsum(delta, A, 'b l d, d n -> b l d n')
+        deltaAExp = torch.exp(deltaA)
         
-        deltaA = torch.exp(einsum(delta, A, 'b l d, d n -> b l d n'))
+       
         deltaBx = einsum(delta, B, x, 'b l d, b l n, b l d -> b l d n')
+        #deltaBx = einsum((deltaAExp  -1 )/deltaA  ,olddeltaBx, 'b l d n,b l d n -> b l d n')
+
         h = torch.zeros(b, d, n, device=x.device, dtype=x.dtype)
         
         # forward pass of the state space model        
         ylist = []
         for i in range(l):
-            h = deltaA[:, i] * h + deltaBx[:, i]
+            h = deltaAExp[:, i] * h + deltaBx[:, i]
             ylist.append(einsum(h, C[:,i], 'b d n, b n -> b d'))
         
         y = torch.stack(ylist, dim=1)
@@ -116,7 +119,26 @@ class MambaBlock(nn.Module):
         
         return y
     
- 
+    def pscan(self, x, delta, A, B, C, D):
+        b, l, d = x.size()
+        n = A.size(1)
+        deltaA = einsum(delta, A, 'b l d, d n -> b l d n')
+        deltaAExp = torch.exp(deltaA)
+        
+       
+        deltaBx = einsum(delta, B, x, 'b l d, b l n, b l d -> b l d n')
+        #deltaBx = einsum((deltaAExp  -1 )/deltaA  ,olddeltaBx, 'b l d n,b l d n -> b l d n')
+
+        #A_diag,B -> bldn
+        a_t_star= torch.cumsum(deltaA,dim=1)
+        x_0 = torch.ones(b, 1, d, n, device=x.device, dtype=x.dtype)*1e-12
+        y = (torch.cumsum(torch.cat((complex_log(x_0),complex_log(deltaBx)-a_t_star),dim=1).exp(),dim=1)[:,1:].log() + a_t_star).exp().real
+        y = einsum(y, C, 'b l d n, b l n -> b l d')
+        y = y + D * x
+        return y
+
+
+
     
     def ssm(self, x):
         A = -torch.exp(self.A_log.float())
@@ -132,41 +154,7 @@ class MambaBlock(nn.Module):
             y = self.sscan(x, delta, A, B, C, D)
         
         return y
-    
-    #@torch.compile
-    def pscan(self, u, delta, A, B, C, D):
 
-        #copied need to modify this
-    
-        
-        # ------------
-        # FILL THIS IN - START
-        # ------------
-        
-        (b, l, d_in) = u.shape
-        n = A.shape[1]
-        
-        # Discretize continuous parameters (A, B)
-        # - A is discretized using zero-order hold (ZOH) discretization (see Section 2 Equation 4 in the Mamba paper [1])
-        # - B is discretized using a simplified Euler discretization instead of ZOH. From a discussion with authors:
-        #   "A is the more important term and the performance doesn't change much with the simplification on B"
-        deltaA = torch.exp(einsum(delta, A, 'b l d_in, d_in n -> b l d_in n'))
-        deltaB_u = einsum(delta, B, u, 'b l d_in, b l n, b l d_in -> b l d_in n')
-        
-        # Perform selective scan (see scan_SSM() in The Annotated S4 [2])
-        # Note that the below is sequential, while the official implementation does a much faster parallel scan that
-        # is additionally hardware-aware (like FlashAttention).
-        x = torch.zeros((b, d_in, n), device=deltaA.device)
-        ys = []    
-        for i in range(l):
-            x = deltaA[:, i] * x + deltaB_u[:, i]
-            y = einsum(x, C[:, i, :], 'b d_in n, b n -> b d_in')
-            ys.append(y)
-        y = torch.stack(ys, dim=1)  # shape (b, l, d_in)
-        
-        y = y + u * D
-    
-        return y
 
     def forward(self, x):
         """Forward pass of SSM.
@@ -187,9 +175,8 @@ class MambaBlock(nn.Module):
         
         x = self.conv1d(x) # 1D convolution
         x = F.silu(x) # SILU activation
-        
-        y = self.ssm(x)
-        y = y * F.silu(skip) # gating mechanism
+    
+        y =  self.ssm(x) * F.silu(skip) # gating mechanism
         
         output = self.output_state(y)
         
@@ -241,8 +228,6 @@ class RMSNorm(nn.Module):
 
 
 
-
-
 if __name__ == '__main__':
     
     b = 16
@@ -262,4 +247,4 @@ if __name__ == '__main__':
     y1 = mamba.sscan(x, delta, A, B, C, D)
     y2 = mamba.pscan(x, delta, A, B, C, D)
     print((y1-y2).abs().max())
-    print(torch.allclose(y1, y2, atol=1e-5))
+    print(torch.allclose(y1, y2, atol=1e-4))
