@@ -183,11 +183,9 @@ looks at `EOS` and generates `ay`
 Expected a cluster around the vowels and consonants however no such pattern has emerged in learning embeddings, that implies it leart these embeddings differents and it memorises a,e,i,o,u differently.
 
 
+### Abalation study
 
 There is not much tuning required for architecture. For this task transformer is ideal model. Even the small model works very well, if you increase the model capacity the model will start working great and then performance saturates. 
-
-
-### Abalation study
 
 We will perform what modules of the transformers architecture is important and how things change with the scale of these modules.
 
@@ -206,7 +204,7 @@ In the following experiment, we consider Transformer Base model with the followi
 
 | Model |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
-| Base | 0.150  | 0.071   |   0.706  | 0.922  |
+| Base |0.043  | 0.050      |   0.909  |  0.957   |
 
 ### Sample of Mistakes made by the model
 
@@ -226,7 +224,7 @@ We can see that for this problem pos embeddings from the visualtions are very im
 
 
 
-There is a huge drop in accuracy when we drop the output embeddings, because this task is focused on remembering the positional embeddings, having them will improve the accuracy by 13%
+There is a huge drop in accuracy when we drop the output embeddings, because this task is focused on remembering the positional embeddings, having them will improve the accuracy by 40%
 
 As we establish that positional encodings are important, Does training them improves performance?
 
@@ -235,9 +233,9 @@ As we establish that positional encodings are important, Does training them impr
 | output pos embeddings |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
 |disable| 0.232   |  0.114    |  0.576 |  0.858  |
-|Train| 0.075  |  0.036    |  0.862 |  0.966  |
+|Train| 0.033  | 0.004  |  0.962 |  1.000    |
 
-Learning positional encodings significantly improves the performance for this task because the shift is words is based on pos embeddings more than the embedings of the words.
+Learning positional encodings significantly improves the performance for this task because the shift is words is based on pos embeddings more than the embedings of the words. Improvement of 5.83%
 
 Lets look at the learning embeddings ( initialised with the sinusodial embeddings)
 ![Positional Embedding visualisation](assets/pos_emb.png)
@@ -247,33 +245,78 @@ We will analyse the performane with the increase in head size
 
 | head size|  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
-| 4 |  |    |   |   |
-| 8 |  |    |   |   |
+| 4 | 0.070  | 0.049     |  0.853 | 0.970     |
+| 8 |  0.059 |  0.034  |  0.912 | 0.971  |
+
+The best performace we have found to be 8 head with each of diamension 8, which makes the hidden diamension of 64.We found that balencing number of heads and the diamension of each head is very cruicial to improving the performance.
+
+ 
 
 | dim_size |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
-| 32 |  |    |   |   |
+| 32 |0.106  | 0.137    | 0.779  |  0.923 |
 
-
+With decreasing the diamension of hidden size the performance 
 
 
 | layers |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
-| 2 |  |    |   |   |
-| 8 |  |    |   |   |
+| 2 | 0.086  |   0.071    |  0.842 |   0.935       |
+| 8 |   0.120   | 0.016  | 0.812  | 0.984  |
+
+The encoder and decoder layers of 2 each gives the better performance increasing the layers start to increase the training performance but deterioates the validation performance.
 
 
+## The ultimate beast model 
+
+64 hidden diamensions with 8 attention heads and 2 layers of encoder and decdoder each with training the positional encoders.
+
+Few small modifications we have done to improve the performace, Small change to the scheduler because we observered that the ReduceLROnPlateau will never reduce the lr becuase of lower threshold and increasing the threshold has unstudied effects on performance. Therefore we stick to CosineAnleaning as a scheduler as used by GPT-3 paper and we also train for 100 epochs as done by GPT and also the weight decay of 0.01. The only difference to GPT is we use accumulated gradients to account for variantion in size ( as our batches has same size ).
+
+The only change we make from going from small to large is number of layers. from 2 each to 4 each.
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Beast small ( 143K )| 0.025  | 0.004   |  0.970  | 1.000  |
+| Beast large ( 276 K ) | 0.036  | 0.006  |   0.964  |  1.000  |
+
+The beast small model makes only 3 mistakes
+
+| latin | true piglatin value | Wrong  translation |
+|---|---|---|
+|pleasure-grounds | easureplay-oundsgray | easureplay-ouredsplay |
+|strengthening | engtheningstray | engtheneningstra |
+|thoughtfulness |oughtfulnessthay | oughtfulneststhay |
+
+How did the training go?
+
+| Metric (40 steps = 1epoch 40*100 = 4K)   | validation  | training  |
+|---|---|---|
+|Loss |![train_loss](assets/train_loss.png)  | ![val_loss](assets/val_loss.png)|
+|Accuracy|![train_acc](assets/train_acc.png) | ![val_acc](assets/val_acc.png)|
+| Learning rate | | ![lr](assets/lr.png)|
+
+Few more corrections to the code:
+1. in pytorch lightning `scheduler` should be named to `lr_scheduler`
+2. self.model.eval() in generate else the test cases after the training will still be in train mode.
 
 
-### Choice of A, state transition matrix in Mamba
+# Mamba 
+
+
+One of the important attributes of understand the state transition matrix, A  we will analyse the properties of it. We will start with the base case as mentioned in the codebase. we will try to improve matrix A, for this task.
+
+
+### Choice of A, state transition matrix
 
 Why did I choose A to be -I because we dont want to loose information from along the context, and also ubserving that one you initialse A to be this matrix the gradient will be very smal. The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to -I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to -I)
 
+### P-scan vs S-scan
+
+We will compare the time we improved by implementing pscan vs sscan.
 
 
-### Results 
 
-In this section we compare the best models of small and large and we will write a 
 
 
 

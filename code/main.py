@@ -59,6 +59,7 @@ if __name__ == '__main__':
         precision=args.precision,
         reload_dataloaders_every_n_epochs=1,
         enable_checkpointing=enable_checkpointing,
+        accumulate_grad_batches=5,
         gradient_clip_val=1.0
         )
     

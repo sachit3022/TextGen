@@ -2,12 +2,12 @@
 
 # dataset options
 dataset=PigLatin
-dataset_options={"data_dir": "data/", "data_file": "pig_latin_small.txt", "batch_size": 128}
+dataset_options={"data_dir": "data/", "data_file": "pig_latin_small.txt", "batch_size": 16}
 embedding = Embedding
 
 # model options
 model_type = Transformer
-model_options = {"hidden_size":64, "num_encoder_layers":2, "num_decoder_layers":2, "num_heads":2, "dropout":0.2}
+model_options = {"hidden_size":64, "num_encoder_layers":2, "num_decoder_layers":2, "num_heads":8, "dropout":0.1}
 loss_type = CrossEntropyLoss
 
 # training options
@@ -18,8 +18,8 @@ nepochs=100
 learning_rate=3e-3
 optim_method=AdamW
 optim_options={"weight_decay": 0.01}
-scheduler_method=ReduceLROnPlateau
-scheduler_options={"factor": 0.5, "patience": 5, "threshold": 0.001, "min_lr": 1e-6}
+scheduler_method=CosineAnnealingLR
+scheduler_options={"T_max":100, "eta_min": 1e-6}
 scheduler_monitor=val_loss
 
 # cpu/gpu settings

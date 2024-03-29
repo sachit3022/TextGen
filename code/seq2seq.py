@@ -275,7 +275,7 @@ class Seq2Seq(pl.LightningModule):
             lr=self.args.learning_rate, **self.args.optim_options)
         
         if self.args.scheduler_method is not None:
-            out['scheduler'] = getattr(torch.optim.lr_scheduler, self.args.scheduler_method)(
+            out['lr_scheduler'] = getattr(torch.optim.lr_scheduler, self.args.scheduler_method)(
                 out['optimizer'], **self.args.scheduler_options
             )
             out['monitor'] = self.args.scheduler_monitor

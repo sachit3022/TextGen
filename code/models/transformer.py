@@ -11,7 +11,7 @@ class Transformer(nn.Module):
     def __init__(self, hidden_size, num_encoder_layers, num_decoder_layers, num_heads=1, dropout=0.2):
         super(Transformer, self).__init__()
         self.num_heads = num_heads
-        self.positional_encodings =  None #nn.Parameter(create_positional_encodings(hidden_size))
+        self.positional_encodings = nn.Parameter(create_positional_encodings(hidden_size))
         self.encoder = TransformerEncoder(hidden_size, num_encoder_layers, num_heads, dropout, positional_encodings = self.positional_encodings)
         self.decoder = TransformerDecoder(hidden_size, num_decoder_layers, num_heads, dropout, positional_encodings = self.positional_encodings)
 
@@ -274,7 +274,7 @@ class MultiHeadAttention(nn.Module):
         _,c1,c2 = attention.shape
         return attention.view(q_batch_size,-1,c1,c2),context
     
-def create_positional_encodings(hidden_size, max_seq_len=1000):
+def create_positional_encodings(hidden_size, max_seq_len=100):
     """Creates positional encodings for the inputs.
 
     Arguments:
