@@ -148,6 +148,15 @@ Change `hidden_size` in the config file to 64 and then run:
 
 # Writeup
 
+### Definition changes
+
+Loss Computation : Instead of measuring average loss accross samples that are of not of same size. we average the loss per charecter so the loss from longer and smaller words are equaly contributed. We get a larger value than the simpler metric of avg accross samples, because model makes mistakes for longer samples compared to the smaller ones.
+
+Accuracy: We compute how many words are predicted correctly, which will give us a true metric. because even if the architecture or model is wrong because train and val sets are sampled form same distribution your loss will be very low but the model will output garbage.
+
+we will only plot the train and val loss for the final better performance and we will also measure the accuracy of the words predicted and we also analyse the incorrect words and the pattern about the incorrect words is that they have repeating charecers and usually a bit long. 
+
+
 ## Interpretability of Transformers
 For similar understanding, we will use a smaller model, 2 encoders, 2 decoders and 2 attention heads. We will study 3 different words which represents different type of translations in piglatin
 (1) brown -> ownbray
@@ -168,8 +177,91 @@ Encoder Attentions always have high value for the previous token will be respons
 Cross attentions are perfect in the sense always the current word is look for the next word if the word is the last word it automatically points to the first word and keep producing till you reach the SOS matched token and then
 looks at `EOS` and generates `ay` 
 
+## visualisation of embeddings
+
+![Embedding visualisation](assets/emb.png)
+Expected a cluster around the vowels and consonants however no such pattern has emerged in learning embeddings, that implies it leart these embeddings differents and it memorises a,e,i,o,u differently.
+
+
 
 There is not much tuning required for architecture. For this task transformer is ideal model. Even the small model works very well, if you increase the model capacity the model will start working great and then performance saturates. 
+
+
+### Abalation study
+
+We will perform what modules of the transformers architecture is important and how things change with the scale of these modules.
+
+In the following experiment, we consider Transformer Base model with the following parameters and only change one hyperparameter at one time.
+
+
+| hyper parameter | val |
+|---|---|
+| hidden diamension | 64 |
+| head size | 16 |
+| num of encoder layers | 2 |
+| num of decoder layers | 2 |
+| batch size | 128 |
+| learning rate | 3e-3 |
+| number of epochs | 100 |
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Base | 0.150  | 0.071   |   0.706  | 0.922  |
+
+### Sample of Mistakes made by the model
+
+| true value | Wrong prediction |
+|---|---|
+|acrossway | acrosssway|
+|adieusway | adieussway|
+|ankleway | ankleeway|
+|oodgay-umouredhay|oodgay-mouray-odha|
+
+Most identified mistakes are the starting with vowel and doesnot know the end so ends up repeatingv the final charecter.
+
+
+
+
+We can see that for this problem pos embeddings from the visualtions are very important what if we remove them
+
+
+
+There is a huge drop in accuracy when we drop the output embeddings, because this task is focused on remembering the positional embeddings, having them will improve the accuracy by 13%
+
+As we establish that positional encodings are important, Does training them improves performance?
+
+
+
+| output pos embeddings |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+|disable| 0.232   |  0.114    |  0.576 |  0.858  |
+|Train| 0.075  |  0.036    |  0.862 |  0.966  |
+
+Learning positional encodings significantly improves the performance for this task because the shift is words is based on pos embeddings more than the embedings of the words.
+
+Lets look at the learning embeddings ( initialised with the sinusodial embeddings)
+![Positional Embedding visualisation](assets/pos_emb.png)
+
+
+We will analyse the performane with the increase in head size
+
+| head size|  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| 4 |  |    |   |   |
+| 8 |  |    |   |   |
+
+| dim_size |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| 32 |  |    |   |   |
+
+
+
+
+| layers |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| 2 |  |    |   |   |
+| 8 |  |    |   |   |
+
 
 
 
@@ -178,6 +270,10 @@ There is not much tuning required for architecture. For this task transformer is
 Why did I choose A to be -I because we dont want to loose information from along the context, and also ubserving that one you initialse A to be this matrix the gradient will be very smal. The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to -I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to -I)
 
 
+
+### Results 
+
+In this section we compare the best models of small and large and we will write a 
 
 
 
@@ -192,4 +288,5 @@ Why did I choose A to be -I because we dont want to loose information from along
 [^vaswani2017attention]: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In Advances in neural information processing systems, pages 5998–6008, 2017.
 [^S4]: [[2111.00396\] Efficiently Modeling Long Sequences with Structured State Spaces (arxiv.org)](https://arxiv.org/abs/2111.00396)
 [^heinsen2023scan]: [[2311.06281\] Efficient Parallelization of a Ubiquitous Sequential Computation (arxiv.org)](https://arxiv.org/abs/2311.06281)
+
 [^bertviz] : [Vig, J. (2019). A multiscale visualization of attention in the transformer model. arXiv preprint arXiv:1906.05714.](https://arxiv.org/abs/1906.05714)

@@ -25,15 +25,12 @@ class Seq2Seq(pl.LightningModule):
         self.model = getattr(models, args.model_type)(**args.model_options)
         self.output = torch.nn.Linear(self.hidden_size, self.vocab_size)
         
-        
-        #if not  hasattr(self.model, 'encoder'): # this is for SSM to tie weights ( recommended in the original file but didnot find any improvements.)
-        #    self.output.weight =self.embedding.weight 
 
         self.loss = getattr(torch.nn, args.loss_type)(**args.loss_options)
 
         self.data_prop = dataloader.idx_dict
         self.max_generated_chars = dataloader.max_seq_len
-        self.test = dataloader.test
+        self.test = dataloader.test   
 
     def on_train_start(self):
         self.logger.log_hyperparams(self.hparams,
@@ -86,6 +83,7 @@ class Seq2Seq(pl.LightningModule):
 
         return loss
 
+
     def validation_step(self, batch, _):
 
         self.model.eval()
@@ -130,7 +128,13 @@ class Seq2Seq(pl.LightningModule):
             self.logger.experiment.add_text(self.test, gen, global_step=self.current_epoch)
         else:
             self.logger.experiment.add_image(self.test, gen, global_step=self.current_epoch)
+        
 
+    def on_train_end(self):
+        torch.save(self.embedding.weight.data,f"{self.logger.log_dir}/emb.pt")
+        #torch.save(self.model.positional_encodings.data ,f"{self.logger.log_dir}/pos_emb.pt")
+
+    
     def string_to_index_list(self, s):
         """Converts a sentence into a list of indexes (for each character).
         """
@@ -176,7 +180,7 @@ class Seq2Seq(pl.LightningModule):
                 if not decoder_inputs.size(0):
                     break
             
-            """
+
             #Script to check which words are wrong generally the large wordsa re inccorect compared to the smaller ones. 
             if decoder_inputs.size(0) and (self.current_epoch>60 and self.current_epoch%10==0):
    
@@ -191,10 +195,8 @@ class Seq2Seq(pl.LightningModule):
                         for item in targets.cpu().numpy().reshape(-1)])
                 target_words = target_string.split('EOS')[:-1]
 
-
                 for s,t in zip(gen_words,target_words):
                     self.logger.experiment.add_text(t, s, global_step=self.current_epoch)
-            """
     
 
         return acc/batch_size

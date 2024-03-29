@@ -5,6 +5,7 @@ import os
 import pytorch_lightning as pl
 import pytorch_lightning.callbacks as cbs
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 import config
 import dataloaders
@@ -14,7 +15,9 @@ if __name__ == '__main__':
     
     args = config.parse_args()
     pl.seed_everything(args.manual_seed)
-    callbacks = [cbs.RichProgressBar()]
+    lr_monitor = LearningRateMonitor(logging_interval='step')
+    callbacks = [cbs.RichProgressBar(),lr_monitor]
+    
     print("starting main")
     
     print(args.dataset)

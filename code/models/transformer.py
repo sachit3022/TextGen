@@ -11,9 +11,9 @@ class Transformer(nn.Module):
     def __init__(self, hidden_size, num_encoder_layers, num_decoder_layers, num_heads=1, dropout=0.2):
         super(Transformer, self).__init__()
         self.num_heads = num_heads
-        
-        self.encoder = TransformerEncoder(hidden_size, num_encoder_layers, num_heads, dropout)
-        self.decoder = TransformerDecoder(hidden_size, num_decoder_layers, num_heads, dropout)
+        self.positional_encodings =  None #nn.Parameter(create_positional_encodings(hidden_size))
+        self.encoder = TransformerEncoder(hidden_size, num_encoder_layers, num_heads, dropout, positional_encodings = self.positional_encodings)
+        self.decoder = TransformerDecoder(hidden_size, num_decoder_layers, num_heads, dropout, positional_encodings = self.positional_encodings)
 
     def forward(self, inputs,outputs=None):
         """Forward pass of the Transformer.
@@ -34,7 +34,7 @@ class Transformer(nn.Module):
         return (enc_attn,dec_attn), output
     
 class TransformerEncoder(nn.Module):
-    def __init__(self, hidden_size, num_layers, num_heads=1, dropout=0.2):
+    def __init__(self, hidden_size, num_layers, num_heads=1, dropout=0.2,positional_encodings = None):
         super(TransformerEncoder, self).__init__()
 
         self.num_layers = num_layers
@@ -56,8 +56,11 @@ class TransformerEncoder(nn.Module):
                                     nn.Dropout(dropout),
                                     nn.Linear(hidden_size, hidden_size),
                                  ) for i in range(self.num_layers)])
+        if positional_encodings is not None:
+            self.positional_encodings = positional_encodings
+        else:
+            self.register_buffer('positional_encodings',create_positional_encodings(hidden_size))
 
-        self.register_buffer('positional_encodings', create_positional_encodings(hidden_size))
 
     def forward(self, inputs):
         """Forward pass of the encoder Transformer.
@@ -116,7 +119,7 @@ class TransformerEncoder(nn.Module):
         return attn,annotations
     
 class TransformerDecoder(nn.Module):
-    def __init__(self, hidden_size, num_layers, num_heads=1, dropout=0.2):
+    def __init__(self, hidden_size, num_layers, num_heads=1, dropout=0.2,positional_encodings=None):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
@@ -145,9 +148,10 @@ class TransformerDecoder(nn.Module):
                                     nn.Linear(hidden_size, hidden_size),
                                  ) for i in range(self.num_layers)])
         
-        
-        self.register_buffer('positional_encodings', create_positional_encodings(hidden_size))
-
+        if positional_encodings is not None:
+            self.positional_encodings = positional_encodings
+        else:
+            self.register_buffer('positional_encodings',create_positional_encodings(hidden_size))
 
 
     def forward(self, inputs, annotations):
