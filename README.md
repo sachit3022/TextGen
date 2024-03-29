@@ -146,6 +146,42 @@ Change `hidden_size` in the config file to 64 and then run:
 
 - **Bonus (2 pts):** You can modify the Mamba configuration by adding more SSM layers, initialization of $\bar{A}$, optimizer, learning rate scheduler, etc. Report the training and validation loss curves for your modification. What do you observe when training this modified transformer? Is it better than the default settings? Why?
 
+# Writeup
+
+## Interpretability of Transformers
+For similar understanding, we will use a smaller model, 2 encoders, 2 decoders and 2 attention heads. We will study 3 different words which represents different type of translations in piglatin
+(1) brown -> ownbray
+(2) conditioning -> onditioningcay
+(3) is -> isway
+
+We use [^bertviz]
+
+
+|   | brown  | conditioning  | is  | 
+|---|---|---|---|
+| Encoder Self attention  | ![encoder_brown](assets/image.png)  | ![encoder_conditioning](assets/image-2.png)  | ![encoder_is](assets/image-1.png)  |  
+| Cross Attention  | ![cross_brown](assets/image-5.png)  | ![cross_conditioning](assets/image-3.png)  |![cross_is](assets/image-6.png)| 
+
+
+Encoder Attentions always have high value for the previous token will be responsible to generate the current token. Also, when the decoder call the word, that word will have the maximum attention to the next word therefore generating the current word.
+
+Cross attentions are perfect in the sense always the current word is look for the next word if the word is the last word it automatically points to the first word and keep producing till you reach the SOS matched token and then
+looks at `EOS` and generates `ay` 
+
+
+There is not much tuning required for architecture. For this task transformer is ideal model. Even the small model works very well, if you increase the model capacity the model will start working great and then performance saturates. 
+
+
+
+### Choice of A, state transition matrix in Mamba
+
+Why did I choose A to be -I because we dont want to loose information from along the context, and also ubserving that one you initialse A to be this matrix the gradient will be very smal. The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to -I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to -I)
+
+
+
+
+
+
 ### Submission
 
 - Edited `README.md` file containing your answers to the conceptual questions, plots, and results with explanations.
@@ -156,3 +192,4 @@ Change `hidden_size` in the config file to 64 and then run:
 [^vaswani2017attention]: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In Advances in neural information processing systems, pages 5998–6008, 2017.
 [^S4]: [[2111.00396\] Efficiently Modeling Long Sequences with Structured State Spaces (arxiv.org)](https://arxiv.org/abs/2111.00396)
 [^heinsen2023scan]: [[2311.06281\] Efficient Parallelization of a Ubiquitous Sequential Computation (arxiv.org)](https://arxiv.org/abs/2311.06281)
+[^bertviz] Vig, J. (2019). A multiscale visualization of attention in the transformer model. arXiv preprint arXiv:1906.05714.

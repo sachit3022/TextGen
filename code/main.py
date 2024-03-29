@@ -62,7 +62,7 @@ if __name__ == '__main__':
     pl.Trainer()
 
     trainer.fit(model)
-
+    
     # add yopur sentences to the list below
     TEST_SENTENCES = [
         'the air conditioning is working',

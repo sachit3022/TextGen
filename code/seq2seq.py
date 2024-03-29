@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
 import models
+from bertviz import model_view
 
 class Seq2Seq(pl.LightningModule):
     def __init__(self, args, dataloader):
@@ -60,10 +61,10 @@ class Seq2Seq(pl.LightningModule):
         start_token = torch.ones(batch_size, device=self.device).long().unsqueeze(1) * self.data_prop['start_token']  # BS x 1 --> 16x1  CHECKED        
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(inputs)
-            encoder_annotations = self.model.encoder(embedded)
+            enc_attn,encoder_annotations = self.model.encoder(embedded)
             decoder_inputs = torch.cat([start_token, targets[:, 0:-1]], dim=1)  # Gets decoder inputs by shifting the targets to the right
             decoder_inputs = self.embedding(decoder_inputs)
-            decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
+            dec_attn,decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
             outputs_flatten = decoder_outputs.view(-1, decoder_outputs.size(2))
         else: # this is for SSM
             all = torch.cat([inputs, start_token, targets[:, :-1]], dim=1)
@@ -81,7 +82,7 @@ class Seq2Seq(pl.LightningModule):
         self.log('train_loss', loss, prog_bar=True, on_step=False, on_epoch=True, logger=True,batch_size=targets_flatten.size(0))
 
         acc = self.accuracy_batch(batch,_)
-        self.log('train_acc',  acc, prog_bar=True, on_step=False, on_epoch=True, logger=True)
+        self.log('train_acc',  acc, prog_bar=True,  on_step=False, on_epoch=True, logger=True)
 
         return loss
 
@@ -95,10 +96,10 @@ class Seq2Seq(pl.LightningModule):
         start_token = torch.ones(batch_size, device=self.device).long().unsqueeze(1) * self.data_prop['start_token']  # BS x 1 --> 16x1  CHECKED        
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(inputs)
-            encoder_annotations = self.model.encoder(embedded)
+            enc_attn,encoder_annotations = self.model.encoder(embedded)
             decoder_inputs = torch.cat([start_token, targets[:, 0:-1]], dim=1)  # Gets decoder inputs by shifting the targets to the right
             decoder_inputs = self.embedding(decoder_inputs)
-            decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
+            dec_attn,decoder_outputs = self.model.decoder(decoder_inputs, encoder_annotations)
             outputs_flatten = decoder_outputs.view(-1, decoder_outputs.size(2))
         else: # this is for SSM
             all = torch.cat([inputs, start_token, targets[:, :-1]], dim=1)
@@ -152,13 +153,13 @@ class Seq2Seq(pl.LightningModule):
         
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(inputs)
-            encoder_annotations = self.model.encoder(embedded)
+            enc_attn,encoder_annotations = self.model.encoder(embedded)
             decoder_inputs = start_token
  
                 ## slow decoding, recompute everything at each time
             for i in range(max_context_len):
                 decoder_emb = self.embedding(decoder_inputs)
-                decoder_outputs = self.model.decoder(decoder_emb, encoder_annotations)
+                dec_attn, decoder_outputs = self.model.decoder(decoder_emb, encoder_annotations)
                 output = self.output(decoder_outputs)
                 
                 generated_words = output.max(2)[1]
@@ -209,12 +210,12 @@ class Seq2Seq(pl.LightningModule):
 
         if hasattr(self.model, 'encoder'): # this is for transformer
             embedded = self.embedding(indexes)
-            encoder_annotations = self.model.encoder(embedded)
+            enc_attn,encoder_annotations = self.model.encoder(embedded)
             decoder_inputs = start_token 
             for i in range(self.max_generated_chars):
                 ## slow decoding, recompute everything at each time
                 decoder_emb = self.embedding(decoder_inputs)
-                decoder_outputs = self.model.decoder(decoder_emb, encoder_annotations)
+                dec_attn,decoder_outputs = self.model.decoder(decoder_emb, encoder_annotations)
                 output = self.output(decoder_outputs)
                 
                 generated_words = F.softmax(output, dim=2).max(2)[1]
@@ -228,6 +229,18 @@ class Seq2Seq(pl.LightningModule):
                     gen_string = "".join(
                         [self.data_prop['index_to_char'][int(item)]
                         for item in generated_words.cpu().numpy().reshape(-1)])
+            
+            html_model_view = model_view(
+                encoder_attention=enc_attn,
+                decoder_attention=dec_attn[0],
+                cross_attention=dec_attn[1],
+                encoder_tokens= [self.data_prop['index_to_char'][int(item)] for item in indexes[0].tolist()],
+                decoder_tokens = [self.data_prop['index_to_char'][int(item)] for item in decoder_inputs[0,:-1].tolist()],
+                html_action='return'
+            )
+            with open(f"{self.logger.log_dir}/{self.current_epoch}_{word}_model_view.html", 'w') as file:
+                file.write(html_model_view.data)
+
         else: # this is for SSM
             all = torch.cat([indexes, start_token], dim=1)
             decoder_inputs = all

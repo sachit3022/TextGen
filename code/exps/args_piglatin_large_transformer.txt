@@ -15,7 +15,7 @@ manual_seed = 0
 nepochs=80
 
 # optimizer options
-learning_rate=0.001
+learning_rate=3e-3
 optim_method=AdamW
 optim_options={"weight_decay": 0.01}
 scheduler_method=ReduceLROnPlateau

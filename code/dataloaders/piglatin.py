@@ -49,7 +49,7 @@ class PigLatin(pl.LightningDataModule):
         self.train_dict = self.create_dict(line_pairs[0:math.floor(0.8 * len(line_pairs))])
         
         self.max_seq_len = 20
-        self.test = 'the air conditioning is working'
+        self.test = "the quick brown fox"#'the air conditioning is working'
 
     def filter_lines(self, lines):
         """Filters lines to consist of only alphabetic characters or dashes "-".

@@ -10,6 +10,7 @@ __all__ = ['Transformer']
 class Transformer(nn.Module):
     def __init__(self, hidden_size, num_encoder_layers, num_decoder_layers, num_heads=1, dropout=0.2):
         super(Transformer, self).__init__()
+        self.num_heads = num_heads
         
         self.encoder = TransformerEncoder(hidden_size, num_encoder_layers, num_heads, dropout)
         self.decoder = TransformerDecoder(hidden_size, num_decoder_layers, num_heads, dropout)
@@ -25,12 +26,12 @@ class Transformer(nn.Module):
             hidden: The final hidden state of the encoder, for each sequence in a batch. (batch_size x hidden_size)
         """
         
-        annotations = self.encoder(inputs)
+        enc_attn,annotations = self.encoder(inputs)
         if outputs is None:
             outputs = inputs
-        output = self.decoder(inputs, annotations)
+        dec_attn,output = self.decoder(inputs, annotations)
     
-        return output
+        return (enc_attn,dec_attn), output
     
 class TransformerEncoder(nn.Module):
     def __init__(self, hidden_size, num_layers, num_heads=1, dropout=0.2):
@@ -79,13 +80,15 @@ class TransformerEncoder(nn.Module):
 
         annotations = encoded
 
+        #combine them
+        attn =[]
         for i in range(self.num_layers):
             
             # 1. normalization layer
             new_annotations = self.norm1[i](annotations)
             
             # 2. self attention layer
-            new_annotations = self.self_attentions[i](new_annotations,new_annotations,new_annotations)  # batch_size x seq_len x hidden_size
+            self_attention,new_annotations = self.self_attentions[i](new_annotations,new_annotations,new_annotations)  # batch_size x seq_len x hidden_size
             
             # skip connection with dropout
             annotations = annotations + self.dropout1[i](new_annotations)
@@ -98,6 +101,8 @@ class TransformerEncoder(nn.Module):
             
             # skip connection with dropout
             annotations = annotations + self.dropout2[i](new_annotations)
+            attn.append(self_attention)
+        
 
             
         # ------------
@@ -108,7 +113,7 @@ class TransformerEncoder(nn.Module):
             annotations = self.norm(annotations)
 
         # Transformer encoder does not have a last hidden layer.
-        return annotations
+        return attn,annotations
     
 class TransformerDecoder(nn.Module):
     def __init__(self, hidden_size, num_layers, num_heads=1, dropout=0.2):
@@ -160,13 +165,15 @@ class TransformerDecoder(nn.Module):
         
         contexts = inputs +  self.positional_encodings[:seq_len,:] # add the positional encodings to the inputs
 
+        self_attn,cross_attn=[],[]
+
         for i in range(self.num_layers):
             # ------------
             # FILL THIS IN - START
             # ------------
             
             # 1. self attention between the inputs
-            new_contexts = self.self_attentions[i](contexts,contexts,contexts) # batch_size x seq_len x hidden_size
+            self_attention, new_contexts = self.self_attentions[i](contexts,contexts,contexts) # batch_size x seq_len x hidden_size
             
             # 2. skip connection with dropout
             contexts = contexts + self.dropout1[i](new_contexts)
@@ -174,9 +181,8 @@ class TransformerDecoder(nn.Module):
             # 3. normalization layer
             contexts = self.norm1[i](contexts)
         
-            
             # 4. attention to the encoder annotations
-            new_contexts = self.encoder_attentions[i](contexts,annotations,annotations)  # batch_size x seq_len x hidden_size
+            cross_attention,new_contexts = self.encoder_attentions[i](contexts,annotations,annotations)  # batch_size x seq_len x hidden_size
             
             # 5. skip connection with dropout
             contexts = contexts + self.dropout2[i](new_contexts)
@@ -192,15 +198,19 @@ class TransformerDecoder(nn.Module):
             
             # 9. normalization layer
             contexts = self.norm3[i](contexts)
+
+            self_attn.append(self_attention)
+            cross_attn.append(cross_attention)
             
             # ------------
             # FILL THIS IN - END
             # ------------
 
+        
         if self.norm is not None:
             contexts = self.norm(contexts)
 
-        return contexts
+        return (self_attn,cross_attn),contexts
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, hidden_size, num_heads, attention_type, dropout=None):
@@ -257,8 +267,8 @@ class MultiHeadAttention(nn.Module):
         context = torch.bmm(attention,v) # (B H) X C X C  *  (B H) X C X d -> (B H) X C X d  
         context =context.transpose(1,0).contiguous().view(q_context_len,q_batch_size,q_hidden_dim).transpose(1,0) # reorder dimensions to b x q x d
         context = self.O(context)
-
-        return context
+        _,c1,c2 = attention.shape
+        return attention.view(q_batch_size,-1,c1,c2),context
     
 def create_positional_encodings(hidden_size, max_seq_len=1000):
     """Creates positional encodings for the inputs.
