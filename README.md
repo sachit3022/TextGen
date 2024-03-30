@@ -303,25 +303,67 @@ Few more corrections to the code:
 
 # Mamba 
 
+We will start as usual, Tuning learning rate is very esential for getting the best performance from Mamba. We will tune the learning rate from 3e-4, however we found the learning rate is very small for mamba and we increase it to 3e-3 and found it to be ideal for out task. We use all the other parameters as default. And try to push the accuracy of the base model.
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Base | 0.237   | 0.003    |   0.654 |  0.996     |
+
+### Discretisation
+
+State space models 
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Approx  zeroth order hold [^mamba] | 0.237   | 0.003    |   0.654 |  0.996     |
+| Exact zeroth order hold (equation 3) [^mamba]| 0.252  | 0.004    |    0.638 |  0.998     |
+| bi linear interpolation [^S4]| 0.175   | 0.002    |   0.833 | 0.998    |
+
+
+
+
+### Question is choice of A improtant?
+
+Initialising transition matrix to I matrix, which means initialising if A_log to I. that means we can extend to long context without decaying the hidden state will improve. 
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Approx  zeroth order hold [^mamba] | 0.107   | 0.002    |   0.818  | 0.997  |
+| Exact zeroth order hold (equation 3) [^mamba]|0.142 | 0.001     |     0.808|  0.998     |
+| bi linear interpolation [^S4]| 0.119  | 0.002    |   0.873 | 0.998    |
+
+
+From here we will perform our experiments with bi linear interpolation as the discreetisation step.
+
 
 One of the important attributes of understand the state transition matrix, A  we will analyse the properties of it. We will start with the base case as mentioned in the codebase. we will try to improve matrix A, for this task.
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Base |0.043  | 0.050      |   0.909  |  0.957   |
+Fix the A_log to be e, which means the state transition ($e^{A\nabla} = e^{\nabla}$) is entirely controled by $nabla$. we call this setting as only $\nabla$, we try to observe what $\nabla$ will pick up.
 
-### Choice of A, state transition matrix
-
-Why did I choose A to be I because we dont want to loose information from along the context, and also observing that one you initialse A to be this matrix the gradient will be very smal. The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to -I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to I)
 
 | Model |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
-| With as I fixed |0.314 |  0.128       |  0.534         | 0.863  |
+| only $\nabla$ and A = I| 0.314 |  0.128       |  0.534         | 0.863  |
+| only A and $\nabla$ as Pos embedding  |0.314 |  0.128       |  0.534         | 0.863  |
+| only A and $\nabla$ as constant time step  |0.314 |  0.128       |  0.534         | 0.863  |
+| A= I and  $\nabla$ as Pos embedding |0.314 |  0.128       |  0.534         | 0.863  |
+
+
+
+The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to I)
+
+
+### Is time learning important (dt) ?  
+
+
+
+
 
 ### P-scan vs S-scan
 
-We will compare the time we improved by implementing pscan vs sscan but didnot see any 
+We will compare the time we improved by implementing pscan vs sscan with the torch.compile we see that pscan perform significantly better but why there is a difference in performance when we run without compile and also not sure on the behaviour of torch.compile but as we run with compile we see significant boost in time when pscan is used compared to scan.
 
+![Comparing test time](assets/time.png)
 
 
 
