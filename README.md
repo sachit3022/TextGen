@@ -306,14 +306,21 @@ Few more corrections to the code:
 
 One of the important attributes of understand the state transition matrix, A  we will analyse the properties of it. We will start with the base case as mentioned in the codebase. we will try to improve matrix A, for this task.
 
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Base |0.043  | 0.050      |   0.909  |  0.957   |
 
 ### Choice of A, state transition matrix
 
-Why did I choose A to be -I because we dont want to loose information from along the context, and also ubserving that one you initialse A to be this matrix the gradient will be very smal. The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to -I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to -I)
+Why did I choose A to be I because we dont want to loose information from along the context, and also observing that one you initialse A to be this matrix the gradient will be very smal. The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to -I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to I)
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| With as I fixed |0.314 |  0.128       |  0.534         | 0.863  |
 
 ### P-scan vs S-scan
 
-We will compare the time we improved by implementing pscan vs sscan.
+We will compare the time we improved by implementing pscan vs sscan but didnot see any 
 
 
 

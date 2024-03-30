@@ -179,25 +179,45 @@ class Seq2Seq(pl.LightningModule):
                 targets = targets[~end_token_reached]
                 if not decoder_inputs.size(0):
                     break
+        else: # this is for transformer
+            
+            all = torch.cat([inputs, start_token], dim=1)
+            decoder_inputs = all
+            for i in range(self.max_generated_chars):
+                ## slow decoding, recompute everything at each time
+                _decoder_inputs = self.embedding(decoder_inputs)
+                decoder_outputs = self.model(_decoder_inputs)
+                output = self.output(decoder_outputs)
+                generated_words = output.max(2)[1]
+
+                decoder_inputs = torch.cat([decoder_inputs, generated_words[:,-1:]], dim=1)
+                end_token_reached = decoder_inputs[:,-1] == self.data_prop['end_token']
+                
+                if decoder_inputs.size(-1)-all.size(1) == targets.size(-1):
+                    acc += (decoder_inputs[end_token_reached,all.size(1):] == targets[end_token_reached,:]).all(dim=-1).sum().item()
+    
+                decoder_inputs = decoder_inputs[~ end_token_reached]
+                targets = targets[~end_token_reached]
+                if not decoder_inputs.size(0):
+                    break
+
+        #Script to check which words are wrong generally the large wordsa re inccorect compared to the smaller ones. 
+        if decoder_inputs.size(0) and (self.current_epoch>60 and self.current_epoch%10==0):
+
+            gen_string = "".join(
+                    [self.data_prop['index_to_char'][int(item)]
+                    for item in decoder_inputs.cpu().numpy().reshape(-1)])
+            gen_words = gen_string.split('SOS')[1:]
             
 
-            #Script to check which words are wrong generally the large wordsa re inccorect compared to the smaller ones. 
-            if decoder_inputs.size(0) and (self.current_epoch>60 and self.current_epoch%10==0):
-   
-                gen_string = "".join(
-                        [self.data_prop['index_to_char'][int(item)]
-                        for item in decoder_inputs.cpu().numpy().reshape(-1)])
-                gen_words = gen_string.split('SOS')[1:]
-                
+            target_string = "".join(
+                    [self.data_prop['index_to_char'][int(item)]
+                    for item in targets.cpu().numpy().reshape(-1)])
+            target_words = target_string.split('EOS')[:-1]
 
-                target_string = "".join(
-                        [self.data_prop['index_to_char'][int(item)]
-                        for item in targets.cpu().numpy().reshape(-1)])
-                target_words = target_string.split('EOS')[:-1]
+            for s,t in zip(gen_words,target_words):
+                self.logger.experiment.add_text(t, s, global_step=self.current_epoch)
 
-                for s,t in zip(gen_words,target_words):
-                    self.logger.experiment.add_text(t, s, global_step=self.current_epoch)
-    
 
         return acc/batch_size
 

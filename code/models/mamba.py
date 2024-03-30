@@ -3,8 +3,22 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from functools import wraps
+import time
 from einops import rearrange, repeat, einsum
+import numpy as np
+
+def timeit(func):
+    @wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(f'Function {func.__name__}Took {total_time:.4f} seconds')
+        return result
+    return timeit_wrapper
+
 
 __all__ = ['Mamba']
 
@@ -87,27 +101,29 @@ class MambaBlock(nn.Module):
         
         #A = repeat(torch.arange(1,hidden_size+1), "n -> d n", d=self.expanded_hidden_size)
         A = repeat(torch.ones((hidden_size,)), "n -> d n", d=self.expanded_hidden_size)
-        self.A_log = nn.Parameter(torch.log(A))
-        self.A_log.requires_grad = True
+        
+        self.register_buffer("A",A.float())
+        
+        #self.A_log = nn.Parameter(torch.log(A))
+        #self.A_log.requires_grad = True
+        #self.A_log._no_weight_decay = True
+        
         self.D = nn.Parameter(torch.ones((self.expanded_hidden_size)))
         self.D.requires_grad = True
-
-        #self.A_log._no_weight_decay = True
-        #self.D._no_weight_decay = True
         
-
+        self.D._no_weight_decay = True
+    
+    #@timeit  
     def sscan(self, x, delta, A, B, C, D):
         
         b, l, d = x.size()
         n = A.size(1)
-        #A = torch.ones(A.shape,requires_grad=False, device=x.device, dtype=x.dtype)
         
         deltaA = einsum(delta, A, 'b l d, d n -> b l d n')
         deltaAExp = torch.exp(deltaA)
         deltaBx = einsum(delta, B, x, 'b l d, b l n, b l d -> b l d n')
 
-        #zeroth order hold eq 3 from Mamba paper.
-        #deltaBx = einsum((deltaAExp  -1 )/deltaA  ,olddeltaBx, 'b l d n,b l d n -> b l d n')
+
         h = torch.zeros(b, d, n, device=x.device, dtype=x.dtype)
         ylist = []
         for i in range(l):
@@ -119,30 +135,28 @@ class MambaBlock(nn.Module):
         
         return y
     
-    def pscan(self, x, delta, A, B, C, D):
 
-        b, l, d = x.size()
-        n = A.size(1)
-        
-        
-        deltaA = einsum(delta, A, 'b l d, d n -> b l d n')
-        #deltaBx = einsum(delta, B, x, 'b l d, b l n, b l d -> b l d n')
-        
-        #zeoth order hold exact
-        deltaAExp = torch.exp(deltaA)
-        olddeltaBx = einsum(delta, B, x, 'b l d, b l n, b l d -> b l d n')
-        deltaBx = einsum((deltaAExp  -1 )/deltaA  ,olddeltaBx, 'b l d n,b l d n -> b l d n')
+    #@timeit
+    def pscan(self, u, dt, A, B, C, D):
 
-        a_t_star= torch.cumsum(deltaA,dim=1)
-        x_0 = torch.zeros(b, 1, d, n, device=x.device, dtype=x.dtype)#*1e-12
-        y = (torch.cumsum(torch.cat((complex_log(x_0),complex_log(deltaBx)-a_t_star),dim=1).exp(),dim=1)[:,1:].log() + a_t_star).exp().real
-        y = einsum(y, C, 'b l d n, b l n -> b l d')
-        y = y + D * x
+        dA = torch.einsum('bld,dn->bldn', dt, A)
+        dB_u = torch.einsum('bld,bld,bln->bldn', dt, u, B)
 
-        return y
+        #zeroth order hold eq 3 from Mamba paper.
+        dB_u = einsum((dA.exp()  -1 )/dA  ,dB_u, 'b l d n,b l d n -> b l d n')
+    
+        dB_u_log = complex_log(dB_u)
+        
+        dA_star = F.pad(dA[:, 1:].cumsum(1), (0, 0, 0, 0, 1, 0))
+        x_log = torch.logcumsumexp(dB_u_log - dA_star, 1) + dA_star
+        
+        y = torch.einsum('bldn,bln->bld', x_log.real.exp() * torch.cos(x_log.imag), C)
+        return y + u * D
+
     
     def ssm(self, x):
-        A = - torch.exp(self.A_log.float())
+        #A = - torch.exp(self.A_log.float())
+        A = self.A
         D = self.D.float()
 
         dbc = self.param_linear(x) # linear layer to predict delta, B and C
@@ -231,20 +245,58 @@ class RMSNorm(nn.Module):
 if __name__ == '__main__':
     
     b = 16
-    l = 32
-    d = 64
+    d = 128
     n = 64
     
-    x = torch.randn(b, l, d)
-    A = F.softmax(torch.randn(d, n),dim=-1)
-    B = torch.randn(b, l, d)
-    C = torch.randn(b, l, d)
-    D = torch.randn(b, l, d)
-    delta = torch.randn(x.size())
+    l = 32
+
+    device = torch.device('cuda:0')
+
+
+    timing = []
+
+    for l in range(6,14):
+        timing.append([])
+        for _ in range(1):
+            
+            l = 2**l
+            x = torch.randn(b, l, d)
+            A = F.softmax(torch.randn(d, n),dim=-1)
+            B = torch.randn(b, l, d)
+            C = torch.randn(b, l, d)
+            D = torch.randn(b, l, d)
+            delta = torch.randn(x.size())
+
+
+            
+            mamba = MambaBlock(d, 4, 2, "auto")
+
+            x.to(device)
+            A.to(device)
+            B.to(device)
+            delta.to(device)
+            C.to(device)
+            D.to(device)
+            mamba.to(device)
+
+            curr = []
+
+            start_time = time.perf_counter()
+            y1 = mamba.sscan(x, delta, A, B, C, D)
+            end_time = time.perf_counter()
+            curr.append(end_time - start_time)
+
+
+
+            start_time = time.perf_counter()
+            y2 = mamba.pscan(x, delta, A, B, C, D)
+            end_time = time.perf_counter()
+            curr.append(end_time - start_time)
+
+            timing[-1].append(curr)
+
+            print((y1-y2).abs().max())
+            print(torch.allclose(y1, y2, atol=1e-4))
     
-    mamba = MambaBlock(d, 4, 2, "auto")
-    #y = mamba(x)
-    y1 = mamba.sscan(x, delta, A, B, C, D)
-    y2 = mamba.pscan(x, delta, A, B, C, D)
-    print((y1-y2).abs().max())
-    print(torch.allclose(y1, y2, atol=1e-4))
+    timing = np.array(timing)
+    np.save('timing.npz',timing)
