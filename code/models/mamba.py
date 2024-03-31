@@ -112,7 +112,8 @@ class MambaBlock(nn.Module):
         self.output_state = nn.Linear(hidden_size * expansion_factor, hidden_size)
         
         # linear layer to predict dt_rank, B and C
-        self.param_linear = nn.Linear(self.expanded_hidden_size,self.dt_rank + hidden_size * 2,bias = False) # bias False from the authors implementation
+        self.param_linear = nn.Linear(self.expanded_hidden_size, self.dt_rank + hidden_size * 2,bias = False) # bias False from the authors implementation
+
         
         # linear layer to project dt_rank to dt
         self.dt_linear = nn.Linear(self.dt_rank, self.expanded_hidden_size)
@@ -120,19 +121,19 @@ class MambaBlock(nn.Module):
         # 1D convolutional layer
         self.conv1d = CausalConv1d(self.expanded_hidden_size, kernel_size)
 
+        #self.counter = 0
+
         # we initialize the state space model parameters A and D
         
         #A = repeat(torch.arange(1,hidden_size+1), "n -> d n", d=self.expanded_hidden_size)
         A = repeat(torch.ones((hidden_size,)), "n -> d n", d=self.expanded_hidden_size)
-        
-        
         max_context_l=100
 
 
         #self.register_buffer("delta",repeat(torch.arange(1,max_context_l+1),'l -> l d',d=self.expanded_hidden_size) / math.sqrt(self.expanded_hidden_size))
         #self.register_buffer("delta",create_positional_encodings(self.expanded_hidden_size,max_context_l))
 
-        #self.register_buffer("A",A.float())
+        #self.register_buffer("A",-A.float())
         
         self.A_log = nn.Parameter(torch.log(A))
         self.A_log.requires_grad = True
@@ -140,8 +141,8 @@ class MambaBlock(nn.Module):
         self.D = nn.Parameter(torch.ones((self.expanded_hidden_size)))
         self.D.requires_grad = True
         
-        self.A_log._no_weight_decay = True
-        self.D._no_weight_decay = True
+        #self.A_log._no_weight_decay = True
+        #self.D._no_weight_decay = True
     
     #@torch.compile
     def sscan(self, x, delta, A, B, C, D):
@@ -153,6 +154,7 @@ class MambaBlock(nn.Module):
         deltaBx = einsum(delta, B, x, 'b l d, b l n, b l d -> b l d n')
         h = torch.zeros(b, d, n, device=x.device, dtype=x.dtype)
         
+
         # forward pass of the state space model        
         ylist = []
         for i in range(l):
@@ -169,6 +171,8 @@ class MambaBlock(nn.Module):
     def pscan(self, u, dt, A, B, C, D):
 
         dA,dB_u = self.bilinear(A,B,dt,u) # #self.zeroth_order_exact(A,B,dt,u) #
+        
+
         dB_u_log = complex_log(dB_u)
         dA_star = F.pad(dA[:, 1:].cumsum(1), (0, 0, 0, 0, 1, 0))
         x_log = torch.logcumsumexp(dB_u_log - dA_star, 1) + dA_star
@@ -194,19 +198,20 @@ class MambaBlock(nn.Module):
         dA_final = (I+dA)/(I - dA)
         dB_u = torch.einsum('bld,bld,bln->bldn', dt, u, B)/(I - dA)
         return dA_final,dB_u
-
            
     def ssm(self, x):
-        A = - torch.exp(self.A_log.float()) #A = self.A
+        A = - torch.exp(self.A_log.float()) #self.A #
         D = self.D.float()
 
         dbc = self.param_linear(x) # linear layer to predict delta, B and C
         delta,B, C = dbc.split([self.dt_rank, self.hidden_size, self.hidden_size], dim=-1) #self.dt_rank, 
         
         delta = F.softplus(self.dt_linear(delta))/math.sqrt(self.expanded_hidden_size) # want delta to be non-negative
+        
+        #torch.save(delta,f"{self.counter}_{delta.shape}")
+        #self.counter+=1
         #delta = repeat(self.delta[:x.size(1)],'l d -> b l d',b=x.size(0))
-
-
+        
         if hasattr(self, "pscan"):
             y = self.pscan(x, delta, A, B, C, D)
         else:

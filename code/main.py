@@ -24,17 +24,18 @@ if __name__ == '__main__':
     if args.save_results:
         logger = TensorBoardLogger(
             save_dir=args.logs_dir,
-            log_graph=True,
+            log_graph=False,
             name=args.project_name
         )
         checkpoint = cbs.ModelCheckpoint(
-            dirpath=os.path.join(args.save_dir, args.project_name),
+            dirpath=None,
             filename=args.project_name + '-{epoch:03d}-{val_loss:.3f}',
             monitor='val_loss',
             save_top_k=args.checkpoint_max_history,
             save_weights_only=True
             )
         enable_checkpointing = True
+        checkpoint.dirpath = None
         callbacks.append(checkpoint)
     else:
         logger=False

@@ -2,20 +2,20 @@
 
 # dataset options
 dataset=PigLatin
-dataset_options={"data_dir": "data/", "data_file": "pig_latin_large.txt", "batch_size": 64}
+dataset_options={"data_dir": "data/", "data_file": "pig_latin_large.txt", "batch_size": 32}
 embedding = Embedding
 
 # model options
 model_type = Mamba
-model_options = {"hidden_size":64, "num_layers":2, "kernel_size":4, "expansion_factor":2, "dt_rank":"auto"}
+model_options = {"hidden_size":64, "num_layers":4, "kernel_size":16, "expansion_factor":2, "dt_rank":"auto"}
 loss_type = CrossEntropyLoss
 
 # training options
 manual_seed = 0
-nepochs=80
+nepochs=100
 
 # optimizer options
-learning_rate=3e-4
+learning_rate=3e-3
 optim_method=AdamW
 optim_options={"weight_decay": 0.01}
 scheduler_method=ReduceLROnPlateau
