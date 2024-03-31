@@ -340,20 +340,39 @@ One of the important attributes of understand the state transition matrix, A  we
 
 Fix the A_log to be e, which means the state transition ($e^{A\nabla} = e^{\nabla}$) is entirely controled by $nabla$. we call this setting as only $\nabla$, we try to observe what $\nabla$ will pick up.
 
+We will visualise the $\nabla$ as well as weighted average of charecter prosition, which chrecter is getting more weight, as it will be weight decay we observe few things that make it very similar to RNNs
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| only $\nabla$ and A = I| 0.314 |  0.128       |  0.534         | 0.863  |
-| only A and $\nabla$ as Pos embedding  |0.314 |  0.128       |  0.534         | 0.863  |
-| only A and $\nabla$ as constant time step  |0.314 |  0.128       |  0.534         | 0.863  |
-| A= I and  $\nabla$ as Pos embedding |0.314 |  0.128       |  0.534         | 0.863  |
+We will derive what happens when A is -I.
+From the zeroth order hold
+
+$$h_t = e^{A\nabla_t}h_{t-1} + x'_t$$
+$$h_t = e^{-\nabla_t}h_{t-1} + x'_t$$
+$$h_t = e^{-\nabla_t}h_{t-1} + x'_t$$
+$$h_t = e^{-\nabla_t}x'_{t-1} + x'_t + e^{-\nabla_t -\nabla_{t-1} } x'_{t-1} \cdots$$
+$$h_t = \sum_t w_t x'_{t}$$
+where $w_t = e^{-\sum_t \nabla_t}$
+
+we will plot the  $w_t$ for few words and understand what is done by SSMs.
+
+|   |  conditioning | easureplay-oundsgray  | is  | 
+|---|---|---|---|
+| Weight given to each charecter  | ![weight_c](assets/weight_c.png)  | ![weight_p](assets/weight_p.png)  | ![weight_i](assets/weight_i.png)  |  
+| dt vector  | ![dt_vec_c](assets/dt_vec_c.png)  | ![dt_vec_p](assets/dt_vec_p.png)  |![dt_vec_i](assets/dt_vec_i.png)| 
+
+As you can see that the weight stops at the [EOS] token and almost of them have 0 weight after it. Therefore we can assume that the SSMs add the entire context word to the EOS token and starts decoding it for this task. However this behaviour might change for long range arena as Fixing A will not give us better performance. However for this task SSM behave equivalent to RNNs.
 
 
+One small advantage of RNN is adaptability here in case - it also stops at -
 
-The best perfromance I have obtained is from fixing the A to be I and not training. ( we dont want to decay $A^N$ thats the reason to choose A to I) and once we choose this initialisation training stabilises and even if train A the gradients are small and the A remains close to I)
 
+| Model |  val loss | train loss| val accuracy  | train accuracy|comments|
+|---|---|---|---|---|---|
+| $\nabla$ training and A = -I|0.168|   0.003       |  0.833       | 0.997   |images in the above table|
+| A training and $\nabla$ as Pos embedding  | |         |         |  ||
+| A training and $\nabla$ as constant time step  | 0.157 |  0.002     |   0.839     | 0.997   ||
+| A= -I and  $\nabla$ as Pos embedding | |        |          |   ||
 
-### Is time learning important (dt) ?  
+These set of experiments answer all the questions for us in SSMs.
 
 
 
@@ -366,8 +385,29 @@ We will compare the time we improved by implementing pscan vs sscan with the tor
 ![Comparing test time](assets/time.png)
 
 
+Final comments on  Mamba architecture,
+
+### Experimental details
+We will train the architecture with default the  
+
+| hyper parameter | val |
+|---|---|
+| hidden diamension | 64 |
+| kernel size | 16 |
+| expansion factor | 2 |
+| num of layers | 2 |
+| batch size | 128 |
+| learning rate | 3e-3 |
+| Scheduler |Reduce on plateau|
+| number of epochs | 100 |
+
+On small change made to the architecture is we devide delta by $\sqrt{\textit{hidden\_size}}$ This bring stability to training ( credits: Ramin Akbari)
 
 
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Mamba small ( 143K )| 0.025  | 0.004   |  0.970  | 1.000  |
+| Mamba large ( 276 K ) | 0.036  | 0.006  |   0.964  |  1.000  |
 
 
 ### Submission
