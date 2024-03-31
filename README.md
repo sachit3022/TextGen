@@ -385,6 +385,12 @@ We will compare the time we improved by implementing pscan vs sscan with the tor
 ![Comparing test time](assets/time.png)
 
 
+Other minor experiments that didnot lead significant outcomes
+(32,2) v_num: 153.000 val_loss: 0.153 val_acc: 0.844 train_loss: 0.011 train_acc: 0.996   
+(64 1) val_loss: 0.167 val_acc: 0.867 train_loss: 0.004 train_acc: 0.997    
+
+
+
 Final comments on  Mamba architecture,
 
 ### Experimental details
@@ -406,10 +412,22 @@ On small change made to the architecture is we devide delta by $\sqrt{\textit{hi
 
 | Model |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
-| Mamba small ( 143K )| 0.025  | 0.004   |  0.970  | 1.000  |
-| Mamba large ( 276 K ) | 0.036  | 0.006  |   0.964  |  1.000  |
+| Mamba small ( 162 K  )| 0.144  | 0.002    |  0.870 | 0.998     |
+| Mamba large ( 276 K ) | 0.015  | 0.000  |   0.983  |  0.998  |
 
+More details on training
 
+| Metric (40 steps = 1epoch 40*100 = 4K)   | validation  | training  |
+|---|---|---|
+|Loss |![train_loss](assets/mamba_train_loss.png)  | ![val_loss](assets/mamba_val_loss.png)|
+|Accuracy|![train_acc](assets/mamba_train_acc.png) | ![val_acc](assets/mamba_val_acc.png)|
+| Learning rate | | ![lr](assets/mamba_lr.png)|
+
+![alt text](image.png)
+![alt text](image.png)
+
+![alt text](image.png)
+![alt text](image.png)
 ### Submission
 
 - Edited `README.md` file containing your answers to the conceptual questions, plots, and results with explanations.
