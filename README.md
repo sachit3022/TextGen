@@ -407,7 +407,7 @@ We will train the architecture with default the
 | Scheduler |Reduce on plateau|
 | number of epochs | 100 |
 
-On small change made to the architecture is we devide delta by $\sqrt{\textit{hidden\_size}}$ This bring stability to training ( credits: Ramin Akbari)
+On small change made to the architecture is we devide delta by $\sqrt{\textit{hidden size}}$ This bring stability to training ( credits: Ramin Akbari)
 
 
 | Model |  val loss | train loss| val accuracy  | train accuracy|
@@ -420,14 +420,10 @@ More details on training
 | Metric (40 steps = 1epoch 40*100 = 4K)   | validation  | training  |
 |---|---|---|
 |Loss |![train_loss](assets/mamba_train_loss.png)  | ![val_loss](assets/mamba_val_loss.png)|
-|Accuracy|![train_acc](assets/mamba_train_acc.png) | ![val_acc](assets/mamba_val_acc.png)|
+|Accuracy|![train_acc](assets/mamba_train_acc.png) | ![val_acc](assets/mamb_val_acc.png)|
 | Learning rate | | ![lr](assets/mamba_lr.png)|
 
-![alt text](image.png)
-![alt text](image.png)
 
-![alt text](image.png)
-![alt text](image.png)
 ### Submission
 
 - Edited `README.md` file containing your answers to the conceptual questions, plots, and results with explanations.
