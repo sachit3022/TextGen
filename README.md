@@ -148,6 +148,8 @@ Change `hidden_size` in the config file to 64 and then run:
 
 # Writeup
 
+I have closely followed [^vaswani2017attention] and [^GPT] paper to implement transformer. 
+
 ### Definition changes
 
 Loss Computation : Instead of measuring average loss accross samples that are of not of same size. we average the loss per charecter so the loss from longer and smaller words are equaly contributed. We get a larger value than the simpler metric of avg accross samples, because model makes mistakes for longer samples compared to the smaller ones.
@@ -429,10 +431,15 @@ More details on training
 - Edited `README.md` file containing your answers to the conceptual questions, plots, and results with explanations.
 
 [^sutskever2014sequence]: Ilya Sutskever, Oriol Vinyals, and Quoc V Le. Sequence to sequence learning with neural networks. In Advances in Neural Information Processing Systems, pages 3104–3112, 2014.
+
 [^cho2014learning]: Kyunghyun Cho, Bart Van Merri¨enboer, Caglar Gulcehre, Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and Yoshua Bengio. Learning phrase representations using rnn encoder-decoder for statistical machine translation. arXiv preprint arXiv:1406.1078, 2014.
 
 [^vaswani2017attention]: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In Advances in neural information processing systems, pages 5998–6008, 2017.
-[^S4]: [[2111.00396\] Efficiently Modeling Long Sequences with Structured State Spaces (arxiv.org)](https://arxiv.org/abs/2111.00396)
-[^heinsen2023scan]: [[2311.06281\] Efficient Parallelization of a Ubiquitous Sequential Computation (arxiv.org)](https://arxiv.org/abs/2311.06281)
+
+[^S4]: [2111.00396\] Efficiently Modeling Long Sequences with Structured State Spaces (arxiv.org)](https://arxiv.org/abs/2111.00396)
+
+[^heinsen2023scan]: [2311.06281\] Efficient Parallelization of a Ubiquitous Sequential Computation (arxiv.org)](https://arxiv.org/abs/2311.06281)
 
 [^bertviz] : [Vig, J. (2019). A multiscale visualization of attention in the transformer model. arXiv preprint arXiv:1906.05714.](https://arxiv.org/abs/1906.05714)
+
+[^GPT]: [ Brown, Tom, et al. "Language models are few-shot learners." Advances in neural information processing systems 33 (2020): 1877-1901.](https://proceedings.neurips.cc/paper/2020/hash/1457c0d6bfcb4967418bfb8ac142f64a-Abstract.html)
