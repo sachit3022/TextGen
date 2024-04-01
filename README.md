@@ -148,9 +148,21 @@ Change `hidden_size` in the config file to 64 and then run:
 
 # Writeup
 
-I have closely followed [^vaswani2017attention] and [^GPT] paper to implement transformer. 
+## Introduction
 
-### Definition changes
+I have closely followed (Attention is all you need)[^vaswani2017attention] and (GPT)[^GPT] paper to implement transformer. The goal is to understand inner workings of transformers to the extent I try to push the performance on the pig latin task.
+
+One the core blocks of transformers are attention blocks. Each layer of transformer has 3 of such blocks - encoder self-attention, decoder self-attention, cross-attention. It is important to study attention components to undestand how the information is transmitted from source to target. In Visualisation section I show that current word of the encoder will have only information of the previous word in the cross attention it will levarge such information.
+
+In all the NLP tasks, embeddings play very important, We have observed this phenomenon in [HW-1](https://github.com/msu-deep-learning/homework-1-sachit3022/). Do we observe the something similar for this task?  Do vowels, and consonants form clustures. Do - and [EOS] are closer to each other. We dont observe such phenomenon in this task. We hypothesis that the model embeddings space is large compared to the vocab diamension. It has the capacity to make all the tokens orhtogonal to each other. Maybe we can observe this phenomenon when we significantly reduce hidden diamensions. 
+
+
+
+
+
+
+
+## Definition changes
 
 Loss Computation : Instead of measuring average loss accross samples that are of not of same size. we average the loss per charecter so the loss from longer and smaller words are equaly contributed. We get a larger value than the simpler metric of avg accross samples, because model makes mistakes for longer samples compared to the smaller ones.
 
@@ -165,7 +177,7 @@ For similar understanding, we will use a smaller model, 2 encoders, 2 decoders a
 (2) conditioning -> onditioningcay
 (3) is -> isway
 
-We use [^bertviz]
+We use [^bertviz] to unde
 
 
 |   | brown  | conditioning  | is  | 
@@ -440,6 +452,6 @@ More details on training
 
 [^heinsen2023scan]: [2311.06281\] Efficient Parallelization of a Ubiquitous Sequential Computation (arxiv.org)](https://arxiv.org/abs/2311.06281)
 
-[^bertviz] : [Vig, J. (2019). A multiscale visualization of attention in the transformer model. arXiv preprint arXiv:1906.05714.](https://arxiv.org/abs/1906.05714)
+[^bertviz]: [Vig, J. (2019). A multiscale visualization of attention in the transformer model. arXiv preprint arXiv:1906.05714.](https://arxiv.org/abs/1906.05714)
 
 [^GPT]: [ Brown, Tom, et al. "Language models are few-shot learners." Advances in neural information processing systems 33 (2020): 1877-1901.](https://proceedings.neurips.cc/paper/2020/hash/1457c0d6bfcb4967418bfb8ac142f64a-Abstract.html)
