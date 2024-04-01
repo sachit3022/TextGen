@@ -7,7 +7,7 @@ embedding = Embedding
 
 # model options
 model_type = Mamba
-model_options = {"hidden_size":64, "num_layers":2, "kernel_size":16, "expansion_factor":2, "dt_rank":"auto"}
+model_options = {"hidden_size":64, "num_layers":3, "kernel_size":16, "expansion_factor":2, "dt_rank":"auto"}
 loss_type = CrossEntropyLoss
 
 # training options
