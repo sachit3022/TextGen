@@ -348,72 +348,62 @@ Few more corrections to the code:
 
 Similar to transformer, We study various properties of Mamba architecture.
 
-The core block of Mamba architecture or any RNN architecture is the state transition matrix. In experiments below we study how state transition matrix paramerterised by  $A, \nabla$ is responible for making the prediction. 
+The core block of the Mamba architecture, or any RNN architecture, is the state transition matrix. In the experiments below, we study how the state transition matrix, parameterized by $A$ and $\nabla$, is responsible for making predictions.
 
-One of the key take away from the experiments we perform on Mamba is that 
+One of the key takeaways from the experiments we perform on Mamba is that it behaves exactly like an RNN. The entire context information is stored in the "[EOS]" token, and the decoder starts retrieving the information from this token.
 
+We then study how well P-SCAN can replace S-SCAN. P-SCAN takes exponentials and then computes the log, which has a huge impact if the values are larger in magnitude. This becomes a serious issue when the context length increases.
 
+## Analysis of State Transition Matrix A
 
+One of the important attributes to understand is the state transition matrix, A. We will analyze the properties of it and start with the base case as mentioned in the codebase. We aim to improve matrix A for this task.
 
-### Question is choice of A improtant?
+We initialize the transition matrix to -I matrix, which means initializing A_log to 0. This implies that the state transition ($e^{A\nabla} = e^{-\nabla}$) is entirely controlled by $\nabla$. We call this setting "only $\nabla$". We try to observe what $\nabla$ will pick up.
 
-Initialising transition matrix to I matrix, which means initialising if A_log to I. that means we can extend to long context without decaying the hidden state will improve. 
+We will visualize the $\nabla$ as well as the weighted average of character position, which character is getting more weight. As it will be weight decay, we observe a few things that make it very similar to RNNs.
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Approx  zeroth order hold [^mamba] | 0.107   | 0.002    |   0.818  | 0.997  |
-| Exact zeroth order hold (equation 3) [^mamba]|0.142 | 0.001     |     0.808|  0.998     |
-| bi linear interpolation [^S4]| 0.119  | 0.002    |   0.873 | 0.998    |
+### Deriving What Happens When A is -I
 
+From the zeroth-order hold:
+$$
+\begin{align*}
+h_t &= e^{A\nabla_t}h_{t-1} + x'_t \\
+    &= e^{-\nabla_t}h_{t-1} + x'_t \\
+    &= e^{-\nabla_t}h_{t-1} + x'_t \\
+    &= e^{-\nabla_t}x'_{t-1} + x'_t + e^{-\nabla_t -\nabla_{t-1} } x'_{t-1} \cdots \\
+    &= \sum_t w_t x'_{t}
+\end{align*}
+$$
+where $w_t = e^{-\sum_t \nabla_t}$.
 
-From here we will perform our experiments with bi linear interpolation as the discreetisation step.
+We will plot the $w_t$ for a few words and understand what is done by SSMs.
 
-
-One of the important attributes of understand the state transition matrix, A  we will analyse the properties of it. We will start with the base case as mentioned in the codebase. we will try to improve matrix A, for this task.
-
-Fix the A_log to be e, which means the state transition ($e^{A\nabla} = e^{\nabla}$) is entirely controled by $nabla$. we call this setting as only $\nabla$, we try to observe what $\nabla$ will pick up.
-
-We will visualise the $\nabla$ as well as weighted average of charecter prosition, which chrecter is getting more weight, as it will be weight decay we observe few things that make it very similar to RNNs
-
-We will derive what happens when A is -I.
-From the zeroth order hold
-
-$$h_t = e^{A\nabla_t}h_{t-1} + x'_t$$
-$$h_t = e^{-\nabla_t}h_{t-1} + x'_t$$
-$$h_t = e^{-\nabla_t}h_{t-1} + x'_t$$
-$$h_t = e^{-\nabla_t}x'_{t-1} + x'_t + e^{-\nabla_t -\nabla_{t-1} } x'_{t-1} \cdots$$
-$$h_t = \sum_t w_t x'_{t}$$
-where $w_t = e^{-\sum_t \nabla_t}$
-
-we will plot the  $w_t$ for few words and understand what is done by SSMs.
-
-|   |  conditioning | easureplay-oundsgray  | is  | 
+|   | Conditioning | easureplay-oundsgray | is  | 
 |---|---|---|---|
-| Weight given to each charecter  | ![weight_c](assets/weight_c.png)  | ![weight_p](assets/weight_p.png)  | ![weight_i](assets/weight_i.png)  |  
+| Weight given to each character (cumulative sum) | ![weight_c](assets/weight_c.png)  | ![weight_p](assets/weight_p.png)  | ![weight_i](assets/weight_i.png)  |  
 | dt vector  | ![dt_vec_c](assets/dt_vec_c.png)  | ![dt_vec_p](assets/dt_vec_p.png)  |![dt_vec_i](assets/dt_vec_i.png)| 
 
-As you can see that the weight stops at the [EOS] token and almost of them have 0 weight after it. Therefore we can assume that the SSMs add the entire context word to the EOS token and starts decoding it for this task. However this behaviour might change for long range arena as Fixing A will not give us better performance. However for this task SSM behave equivalent to RNNs.
+As you can see, the weight stops at the "[EOS]" token and almost all of them have 0 weight after it. Therefore, we can assume that the SSMs add the entire context word to the EOS token and start decoding it for this task. However, this behavior might change for long-range arenas, as fixing A will not give us better performance. However, for this task, SSM behaves equivalently to RNNs.
 
 
 One small advantage of RNN is adaptability here in case - it also stops at -
 
-
 | Model |  val loss | train loss| val accuracy  | train accuracy|comments|
 |---|---|---|---|---|---|
 | $\nabla$ training and A = -I|0.168|   0.003       |  0.833       | 0.997   |images in the above table|
-| A training and $\nabla$ as Pos embedding  | |         |         |  ||
+| A training and $\nabla$ as Pos embedding  | NA |    NA     |   NA      | NA |NA|
 | A training and $\nabla$ as constant time step  | 0.157 |  0.002     |   0.839     | 0.997   ||
-| A= -I and  $\nabla$ as Pos embedding | |        |          |   ||
+| A= -I and  $\nabla$ as Pos embedding  | NA |    NA     |   NA      | NA |NA|
+
+NA - experiments didnot turn out to be important.
 
 These set of experiments answer all the questions for us in SSMs.
 
 We will start as usual, Tuning learning rate is very esential for getting the best performance from Mamba. We will tune the learning rate from 3e-4, however we found the learning rate is very small for mamba and we increase it to 3e-3 and found it to be ideal for out task. We use all the other parameters as default. And try to push the accuracy of the base model.
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Base | 0.237   | 0.003    |   0.654 |  0.996     |
 
 ### Discretisation
+
 
 State space models 
 
@@ -446,6 +436,22 @@ Other minor experiments that didnot lead significant outcomes
 Final comments on  Mamba architecture,
 
 ### Experimental details
+
+Base case
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Base | 0.237   | 0.003    |   0.654 |  0.996     |
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Approx  zeroth order hold [^mamba] | 0.107   | 0.002    |   0.818  | 0.997  |
+| Exact zeroth order hold (equation 3) [^mamba]|0.142 | 0.001     |     0.808|  0.998     |
+| bi linear interpolation [^S4]| 0.119  | 0.002    |   0.873 | 0.998    |
+
+
+From here we will perform our experiments with bi linear interpolation as the discreetisation step.
+
 We will train the architecture with default the  
 
 | hyper parameter | val |
