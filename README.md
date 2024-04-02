@@ -365,15 +365,13 @@ We will visualize the $\nabla$ as well as the weighted average of character posi
 ### Deriving What Happens When A is -I
 
 From the zeroth-order hold:
-$$
-\begin{align*}
+$$\begin{align*}
 h_t &= e^{A\nabla_t}h_{t-1} + x'_t \\
     &= e^{-\nabla_t}h_{t-1} + x'_t \\
     &= e^{-\nabla_t}h_{t-1} + x'_t \\
     &= e^{-\nabla_t}x'_{t-1} + x'_t + e^{-\nabla_t -\nabla_{t-1} } x'_{t-1} \cdots \\
     &= \sum_t w_t x'_{t}
-\end{align*}
-$$
+\end{align*}$$
 where $w_t = e^{-\sum_t \nabla_t}$.
 
 We will plot the $w_t$ for a few words and understand what is done by SSMs.
