@@ -405,39 +405,35 @@ We will start as usual, Tuning learning rate is very esential for getting the be
 ### Discretisation
 
 
-State space models 
+State space models are very sensitive to the discretization method used. Therefore, we considered various discretizations and found that bilinear interpolation gives us the best performance.
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Approx  zeroth order hold [^mamba] | 0.237   | 0.003    |   0.654 |  0.996     |
-| Exact zeroth order hold (equation 3) [^mamba]| 0.252  | 0.004    |    0.638 |  0.998     |
-| bi linear interpolation [^S4]| 0.175   | 0.002    |   0.833 | 0.998    |
+| Model                                          | Validation Loss | Train Loss | Validation Accuracy | Train Accuracy |
+|------------------------------------------------|-----------------|------------|---------------------|----------------|
+| Approximate zeroth-order hold [^mamba]         | 0.237           | 0.003      | 0.654               | 0.996          |
+| Exact zeroth-order hold (Equation 3) [^mamba]  | 0.252           | 0.004      | 0.638               | 0.998          |
+| Bilinear interpolation [^S4]                   | 0.175           | 0.002      | 0.833               | 0.998          |
 
 
 ### P-scan vs S-scan
 
-We will compare the time we improved by implementing pscan vs sscan with the torch.compile we see that pscan perform significantly better but why there is a difference in performance when we run without compile and also not sure on the behaviour of torch.compile but as we run with compile we see significant boost in time when pscan is used compared to scan.
+We will compare the time improvements achieved by implementing P-SCAN vs S-SCAN with `torch.compile`. We observe that P-SCAN performs significantly better, but there is a difference in performance when we run without compilation. Additionally, we are not sure about the behavior of `torch.compile`, but when we run with compilation, we see a significant boost in time when P-SCAN is used compared to S-SCAN.
+
 
 
 ![Comparing test time](assets/time.png)
 
-**precesion of pscan and scan**
-As pscan is an parallel implementation of sscan, Due to the log and exponentional the precision comes into play, when dealing with large numbers. Also we are approximating $\log{0} = -12$. This leads to not exact solution, we measure how pscan and scan deviate. For smaller context length and logits distributed as $\mathcal{N}(0,I)$, the error grows with increasing context length as well as deviating form normal behaviour of logits. 
+**Precision of P-SCAN and S-SCAN**
+
+As P-SCAN is a parallel implementation of S-SCAN, precision becomes crucial due to the logarithmic and exponential operations involved, especially when dealing with large numbers. Additionally, we approximate $\log{0} = -12$, which leads to non-exact solutions. We measure how P-SCAN and S-SCAN deviate. For smaller context lengths and logits distributed as $\mathcal{N}(0,I)$, the error grows with increasing context length as well as deviating from the normal behavior of logits.
+
 
 ![precision of Psacn and Sscan](assets/precision.png)
 
 
-Other minor experiments that didnot lead significant outcomes
-(32,2) v_num: 153.000 val_loss: 0.153 val_acc: 0.844 train_loss: 0.011 train_acc: 0.996   
-(64 1) val_loss: 0.167 val_acc: 0.867 train_loss: 0.004 train_acc: 0.997    
-
-
-
-Final comments on  Mamba architecture,
 
 ### Experimental details
 
-Base case
+Final comments on  Mamba architecture, Base case
 
 | Model |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
@@ -451,6 +447,12 @@ Base case
 
 
 From here we will perform our experiments with bi linear interpolation as the discreetisation step.
+
+## Impact of hidden diamensions
+
+Other minor experiments that didnot lead significant outcomes
+(32,2) v_num: 153.000 val_loss: 0.153 val_acc: 0.844 train_loss: 0.011 train_acc: 0.996   
+(64 1) val_loss: 0.167 val_acc: 0.867 train_loss: 0.004 train_acc: 0.997   
 
 We will train the architecture with default the  
 
