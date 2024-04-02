@@ -150,28 +150,24 @@ Change `hidden_size` in the config file to 64 and then run:
 
 ## Introduction
 
-I have closely followed (Attention is all you need)[^vaswani2017attention] and (GPT)[^GPT] paper to implement transformer. The goal is to understand inner workings of transformers to the extent I try to push the performance on the pig latin task.
+I have closely followed the "Attention is All You Need" [^vaswani2017attention] and GPT [^GPT] papers to implement a transformer. The goal is to understand the inner workings of transformers to the extent that I try to improve performance on the Pig Latin task.
 
-One the core blocks of transformers are attention blocks. Each layer of transformer has 3 of such blocks - encoder self-attention, decoder self-attention, cross-attention. It is important to study attention components to undestand how the information is transmitted from source to target. In Visualisation section I show that current word of the encoder will have only information of the previous word in the cross attention it will levarge such information.
+One of the core components of transformers is the attention mechanism. Each layer of the transformer comprises three such attention blocks: encoder self-attention, decoder self-attention, and cross-attention. Understanding these attention components is crucial to comprehend how information is transmitted from the source to the target. In the visualization section, I demonstrate that the current word of the encoder will have information only from the previous word in the cross-attention, leveraging such information effectively.
 
-In all the NLP tasks, embeddings play very important, We have observed this phenomenon in [HW-1](https://github.com/msu-deep-learning/homework-1-sachit3022/). Do we observe the something similar for this task?  Do vowels, and consonants form clustures. Do - and [EOS] are closer to each other. We dont observe such phenomenon in this task. We hypothesis that the model embeddings space is large compared to the vocab diamension. It has the capacity to make all the tokens orhtogonal to each other. Maybe we can observe this phenomenon when we significantly reduce hidden diamensions. 
+In all NLP tasks, embeddings play a crucial role. We have observed this phenomenon in [HW-1](https://github.com/msu-deep-learning/homework-1-sachit3022/). Do we observe similar clusters for this task? Do vowels and consonants form clusters? Are "-" and "[EOS]" closer to each other? However, we don't observe such a phenomenon in this task. I hypothesize that the model's embedding space is large compared to the vocabulary dimension. It has the capacity to make all tokens orthogonal to each other. Maybe we can observe this phenomenon when we significantly reduce hidden dimensions.
 
+Can we make any other modifications to improve the performance of the task? The task for Pig Latin relies on positions, as we can observe from the attention maps. So, instead of having cosine positional embeddings, can we train them to improve performance? I demonstrate that training positional embeddings increases performance on this task.
 
+Finally, we perform an ablation study and show which hyperparameters are more influential.
 
+## Preliminaries
 
+**Loss Computation:** We measure the loss values per character. This makes the interpretation of loss simpler. Suppose the loss value is $-\log(\frac{1}{29}) = \log{29}$. This indicates on average model is predicting characters at random. We use this notion because the loss per word is often misleading when there is an imbalance in errors with respect to word length. We show that this is the case, where the model makes mistakes for longer words compared to smaller ones. This leads to a larger value than the simpler metric of average across words.
 
-
-
-## Definition changes
-
-Loss Computation : Instead of measuring average loss accross samples that are of not of same size. we average the loss per charecter so the loss from longer and smaller words are equaly contributed. We get a larger value than the simpler metric of avg accross samples, because model makes mistakes for longer samples compared to the smaller ones.
-
-Accuracy: We compute how many words are predicted correctly, which will give us a true metric. because even if the architecture or model is wrong because train and val sets are sampled form same distribution your loss will be very low but the model will output garbage.
-
-we will only plot the train and val loss for the final better performance and we will also measure the accuracy of the words predicted and we also analyse the incorrect words and the pattern about the incorrect words is that they have repeating charecers and usually a bit long. 
-
+**Accuracy:** We compute how many words are predicted correctly, which provides a true metric. Even if the architecture or model is wrong, because train and validation sets are sampled from the same distribution, the loss will be very low but the model will output garbage.
 
 ## Interpretability of Transformers
+
 For similar understanding, we will use a smaller model, 2 encoders, 2 decoders and 2 attention heads. We will study 3 different words which represents different type of translations in piglatin
 (1) brown -> ownbray
 (2) conditioning -> onditioningcay
