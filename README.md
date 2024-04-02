@@ -150,13 +150,13 @@ Change `hidden_size` in the config file to 64 and then run:
 
 ## Introduction
 
-I have closely followed the "Attention is All You Need" [^vaswani2017attention] and GPT [^GPT] papers to implement a transformer. The goal is to understand the inner workings of transformers to the extent that I try to improve performance on the Pig Latin task.
+I have closely followed the "Attention is All You Need" [^vaswani2017attention] and GPT [^GPT] papers to implement a transformer. The goal is to understand the inner workings of transformers to the extent that We try to improve performance on the Pig Latin task.
 
-One of the core components of transformers is the attention mechanism. Each layer of the transformer comprises three such attention blocks: encoder self-attention, decoder self-attention, and cross-attention. Understanding these attention components is crucial to comprehend how information is transmitted from the source to the target. In the visualization section, I demonstrate that the current word of the encoder will have information only from the previous word in the cross-attention, and this will help cross attention module pick the next word given the current word.
+One of the core components of transformers is the attention mechanism. Each layer of the transformer comprises three such attention blocks: encoder self-attention, decoder self-attention, and cross-attention. Understanding these attention components is crucial to comprehend how information is transmitted from the source to the target. In the visualization section, We demonstrate that the current word of the encoder will have information only from the previous word in the cross-attention, and this will help cross attention module pick the next word given the current word.
 
-In all NLP tasks, embeddings play a crucial role. We have observed this phenomenon in [HW-1](https://github.com/msu-deep-learning/homework-1-sachit3022/). Do we observe similar clusters for this task? Do vowels and consonants form clusters? Are "-" and "[EOS]" closer to each other? However, we don't observe such a phenomenon in this task. I hypothesize that the model's embedding space is large compared to the vocabulary dimension. It has the capacity to make all tokens orthogonal to each other. Maybe we can observe this phenomenon when we significantly reduce hidden dimensions.
+In all NLP tasks, embeddings play a crucial role. We have observed this phenomenon in [HW-1](https://github.com/msu-deep-learning/homework-1-sachit3022/). Do we observe similar clusters for this task? Do vowels and consonants form clusters? Are "-" and "[EOS]" closer to each other? However, we don't observe such a phenomenon in this task. Wr hypothesize that the model's embedding space is large compared to the vocabulary dimension. It has the capacity to make all tokens orthogonal to each other. Maybe we can observe this phenomenon when we significantly reduce hidden dimensions.
 
-Can we make any other modifications to improve the performance of the task? The task for Pig Latin relies on positions, as we can observe from the attention maps. So, instead of having cosine positional embeddings, can we train them to improve performance? I demonstrate that training positional embeddings increases performance on this task.
+Can we make any other modifications to improve the performance of the task? The task for Pig Latin relies on positions, as we can observe from the attention maps. So, instead of having cosine positional embeddings, can we train them to improve performance? We demonstrate that training positional embeddings increases performance on this task.
 
 Finally, we perform an ablation study and show which hyperparameters are more influential.
 
@@ -207,14 +207,15 @@ Cross attentions are perfect in a sense that "[SOS]" attends to the first vowel,
 Expected a cluster around the vowels and consonants however no such pattern has emerged in learning embeddings, that implies it leart these embeddings differents and it memorises a,e,i,o,u differently.
 
 
-### Abalation study
+## Abalation study
 
-There is not much tuning required for architecture. For this task transformer is ideal model. Even the small model works very well, if you increase the model capacity the model will start working great and then performance saturates. 
+In our experimentation, we found that there isn't much tuning required for the architecture itself. Interestingly, we concluded that for this task, the transformer architecture is relatively easier to tune. Even the base model, with no tuning, achieves a validation accuracy of 91%. 
 
-We will perform what modules of the transformers architecture is important and how things change with the scale of these modules.
+When we increase the model's capacity, the performance initially improves significantly, but eventually, it saturates because the training reaches perfect accuracy. However, a heavily tuned model, which we affectionately call "Mamba," results in even better validation accuracy.
 
-In the following experiment, we consider Transformer Base model with the following parameters and only change one hyperparameter at one time.
+In our ablation study, we aim to investigate the importance of different modules within the transformer architecture and how their significance changes with the scale of these modules.
 
+In the following experiment, we consider the model with the below parameters as a base model. We only change one hyperparameter at one time 
 
 | hyper parameter | val |
 |---|---|
@@ -226,44 +227,48 @@ In the following experiment, we consider Transformer Base model with the followi
 | learning rate | 3e-3 |
 | number of epochs | 100 |
 
+
 | Model |  val loss | train loss| val accuracy  | train accuracy|
 |---|---|---|---|---|
 | Base |0.043  | 0.050      |   0.909  |  0.957   |
 
-### Sample of Mistakes made by the model
+Sample mistakes made by the Base model
 
-| true value | Wrong prediction |
+| True value | Wrong prediction |
 |---|---|
 |acrossway | acrosssway|
 |adieusway | adieussway|
 |ankleway | ankleeway|
 |oodgay-umouredhay|oodgay-mouray-odha|
 
-Most identified mistakes are the starting with vowel and doesnot know the end so ends up repeatingv the final charecter.
+Most identified mistakes involve starting with a vowel and not knowing the end, resulting in repeating the final character.
 
 
+**Observation: Mistakes are due to inefficient encoding of postion**
+
+Consider the task of Pig Latin transformation. To predict the next character, we need information from the previous character. Therefore, time plays a more important role than character embeddings.
+
+The attention maps also support this conclusion. Now, if the positional embeddings are crucial, what if we remove them? Will there be a significant drop in accuracy?
+
+There is indeed a substantial drop in accuracy when we drop the positional embeddings, as this task relies heavily on remembering the positional embeddings. Having them improves accuracy by 40%.
+
+### Impact of Training Positional Embeddings
+
+As we establish that positional encodings are important, does training them improve performance?
+
+| Output Pos Embeddings | Validation Loss | Train Loss | Validation Accuracy | Train Accuracy |
+|-----------------------|-----------------|------------|---------------------|----------------|
+| Disable               | 0.232           | 0.114      | 0.576               | 0.858          |
+| Train                 | 0.033           | 0.004      | 0.962               | 1.000          |
+
+Training positional encodings significantly improves performance for this task because word shifts are based more on positional embeddings than on the embeddings of the words. This results in an improvement of 5.83%.
 
 
-We can see that for this problem pos embeddings from the visualtions are very important what if we remove them
+Lets look at the learning embeddings ( initialised with the embeddings from attention is all you need paper.)
 
-
-
-There is a huge drop in accuracy when we drop the output embeddings, because this task is focused on remembering the positional embeddings, having them will improve the accuracy by 40%
-
-As we establish that positional encodings are important, Does training them improves performance?
-
-
-
-| output pos embeddings |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-|disable| 0.232   |  0.114    |  0.576 |  0.858  |
-|Train| 0.033  | 0.004  |  0.962 |  1.000    |
-
-Learning positional encodings significantly improves the performance for this task because the shift is words is based on pos embeddings more than the embedings of the words. Improvement of 5.83%
-
-Lets look at the learning embeddings ( initialised with the sinusodial embeddings)
 ![Positional Embedding visualisation](assets/pos_emb.png)
 
+###  Impact of number of heads
 
 We will analyse the performane with the increase in head size
 
