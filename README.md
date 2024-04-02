@@ -152,7 +152,7 @@ Change `hidden_size` in the config file to 64 and then run:
 
 I have closely followed the "Attention is All You Need" [^vaswani2017attention] and GPT [^GPT] papers to implement a transformer. The goal is to understand the inner workings of transformers to the extent that I try to improve performance on the Pig Latin task.
 
-One of the core components of transformers is the attention mechanism. Each layer of the transformer comprises three such attention blocks: encoder self-attention, decoder self-attention, and cross-attention. Understanding these attention components is crucial to comprehend how information is transmitted from the source to the target. In the visualization section, I demonstrate that the current word of the encoder will have information only from the previous word in the cross-attention, leveraging such information effectively.
+One of the core components of transformers is the attention mechanism. Each layer of the transformer comprises three such attention blocks: encoder self-attention, decoder self-attention, and cross-attention. Understanding these attention components is crucial to comprehend how information is transmitted from the source to the target. In the visualization section, I demonstrate that the current word of the encoder will have information only from the previous word in the cross-attention, and this will help cross attention module pick the next word given the current word.
 
 In all NLP tasks, embeddings play a crucial role. We have observed this phenomenon in [HW-1](https://github.com/msu-deep-learning/homework-1-sachit3022/). Do we observe similar clusters for this task? Do vowels and consonants form clusters? Are "-" and "[EOS]" closer to each other? However, we don't observe such a phenomenon in this task. I hypothesize that the model's embedding space is large compared to the vocabulary dimension. It has the capacity to make all tokens orthogonal to each other. Maybe we can observe this phenomenon when we significantly reduce hidden dimensions.
 
@@ -168,24 +168,38 @@ Finally, we perform an ablation study and show which hyperparameters are more in
 
 ## Interpretability of Transformers
 
-For similar understanding, we will use a smaller model, 2 encoders, 2 decoders and 2 attention heads. We will study 3 different words which represents different type of translations in piglatin
+For understanding the visualisation, we will use a smaller model, 2 encoders, 2 decoders and just 2 attention heads, we will keep the embeddings as 64.  We will study 3 different words which represents different type of translations in piglatin
+
+
 (1) brown -> ownbray
+
 (2) conditioning -> onditioningcay
+
 (3) is -> isway
 
-We use [^bertviz] to unde
-
+We use [^bertviz] to visualise the attention.
 
 |   | brown  | conditioning  | is  | 
 |---|---|---|---|
 | Encoder Self attention  | ![encoder_brown](assets/image.png)  | ![encoder_conditioning](assets/image-2.png)  | ![encoder_is](assets/image-1.png)  |  
 | Cross Attention  | ![cross_brown](assets/image-5.png)  | ![cross_conditioning](assets/image-3.png)  |![cross_is](assets/image-6.png)| 
 
+### Explanation of the Attention Module
 
-Encoder Attentions always have high value for the previous token will be responsible to generate the current token. Also, when the decoder call the word, that word will have the maximum attention to the next word therefore generating the current word.
+One of the heads in the attention mechanism has the specific job of retaining information from the previous token. This is essential for the decoder to predict the next word accurately. Furthermore, when the "[EOS]" token is reached, this head should contain information about the first character. If the two vectors are exactly the same, the dot product is large (close to 1).
 
-Cross attentions are perfect in the sense always the current word is look for the next word if the word is the last word it automatically points to the first word and keep producing till you reach the SOS matched token and then
-looks at `EOS` and generates `ay` 
+This can be depicted visually as follows:
+
+![Image showing the behavior of head 0](assets/head.001.jpeg)
+
+The image illustrates the behavior of head 0. Encoder attention will only retain information about the previous token, making it easier for the decoder to predict the next one as the dot product with the same vectors is maximized.
+
+![Image showing the behavior of head 1](assets/head.002.jpeg)
+
+This image demonstrates the behavior of head 1. In this case, the encoder doesn't learn anything, or you can think of it as learning identity. The embeddings of "[SOS]" are learned such that they are closer to the first vowel (position + vowel embedding). This head aids in predicting the first character. For subsequent character predictions, head 0 will handle them.
+
+Cross attentions are perfect in a sense that "[SOS]" attends to the first vowel, and then the next character will attend to the character that it will be predicting. If the word is the last word, it automatically points to the first word and continues generating until reaching the "[SOS]" matched token, then looks at `EOS`, and generates `ay`.
+
 
 ## visualisation of embeddings
 
