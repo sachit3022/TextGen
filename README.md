@@ -211,7 +211,7 @@ Expected a cluster around the vowels and consonants however no such pattern has 
 
 In our experimentation, we found that there isn't much tuning required for the architecture itself. Interestingly, we concluded that for this task, the transformer architecture is relatively easier to tune. Even the base model, with no tuning, achieves a validation accuracy of 91%. 
 
-When we increase the model's capacity, the performance initially improves significantly, but eventually, it saturates because the training reaches perfect accuracy. However, a heavily tuned model, which we affectionately call "Mamba," results in even better validation accuracy.
+When we increase the model's capacity, the performance initially improves significantly, but eventually, it saturates because the training reaches perfect accuracy. However, a heavily tuned model Mamba performs slightly better than heavily tuned transformer.
 
 In our ablation study, we aim to investigate the importance of different modules within the transformer architecture and how their significance changes with the scale of these modules.
 
@@ -267,67 +267,76 @@ Training positional encodings significantly improves performance for this task b
 Lets look at the learning embeddings ( initialised with the embeddings from attention is all you need paper.)
 
 ![Positional Embedding visualisation](assets/pos_emb.png)
+### Impact of Number of Heads
 
-###  Impact of number of heads
+We will analyze the performance with the increase in head size:
 
-We will analyse the performane with the increase in head size
+| Head Size | Validation Loss | Train Loss | Validation Accuracy | Train Accuracy |
+|-----------|-----------------|------------|---------------------|----------------|
+| 4         | 0.070           | 0.049      | 0.853               | 0.970          |
+| 8         | 0.059           | 0.034      | 0.912               | 0.971          |
+| 16        | 0.043           | 0.050      | 0.909               | 0.957          |
 
-| head size|  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| 4 | 0.070  | 0.049     |  0.853 | 0.970     |
-| 8 |  0.059 |  0.034  |  0.912 | 0.971  |
+The best performance we have found is with 8 heads, each with a dimension of 8, resulting in a hidden dimension of 64. We found that balancing the number of heads and the dimension of each head is crucial to improving performance.
 
-The best performace we have found to be 8 head with each of diamension 8, which makes the hidden diamension of 64.We found that balencing number of heads and the diamension of each head is very cruicial to improving the performance.
+### Impact of Hidden Dimension
 
- 
+| Dimension Size | Validation Loss | Train Loss | Validation Accuracy | Train Accuracy |
+|----------------|-----------------|------------|---------------------|----------------|
+| 32             | 0.106           | 0.137      | 0.779               | 0.923          |
+| 64             | 0.043           | 0.050      | 0.909               | 0.957          |
 
-| dim_size |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| 32 |0.106  | 0.137    | 0.779  |  0.923 |
+Decreasing the dimension of the hidden size results in a drop in performance.
 
-With decreasing the diamension of hidden size the performance 
+### Impact of Number of Layers
+
+| Layers | Validation Loss | Train Loss | Validation Accuracy | Train Accuracy |
+|--------|-----------------|------------|---------------------|----------------|
+| 2      | 0.086           | 0.071      | 0.842               | 0.935          |
+| 4      | 0.043           | 0.050      | 0.909               | 0.957          |
+| 8      | 0.120           | 0.016      | 0.812               | 0.984          |
+
+The encoder and decoder layers of 2 each give better performance. Increasing the layers starts to increase the training performance but deteriorates the validation performance.
+
+### Engineering Improvements
+
+**Accumulated Gradients:** To ensure stochastic gradient convergence to gradient descent, we train with accumulated gradients over 5 epochs to account for the violation of the assumption of randomly sampled samples in a single batch, as our single batch contains identical lengths.
+
+## The Ultimate Beast Model
+
+With 64 hidden dimensions, 8 attention heads, and 2 layers each for encoder and decoder, training the positional encoders. 
+
+A few small modifications were made to improve performance, such as adjusting the scheduler. We observed that the ReduceLROnPlateau scheduler lags behind in training, as it trains one more epoch on high learning rate and the threshold is harder to tune, with increasing the threshold having unstudied effects on performance. Therefore, we opted for CosineAnnealing as a scheduler, as used by the GPT-3 paper, training for 100 epochs and with a weight decay of 0.01. The only difference from GPT is that we use accumulated gradients to account for variation in size.
+
+The only change made from going from small to large is the number of layers, from 2 each to 4 each.
+
+| Model                | Validation Loss | Train Loss | Validation Accuracy | Train Accuracy |
+|----------------------|-----------------|------------|---------------------|----------------|
+| Beast Small (143K)   | 0.025           | 0.004      | 0.970               | 1.000          |
+| Beast Large (276K)   | 0.036           | 0.006      | 0.964               | 1.000          |
+
+The Beast Small model makes only 3 mistakes:
+
+| Latin            | True Pig Latin Value | Wrong Translation       |
+|------------------|----------------------|-------------------------|
+| pleasure-grounds| easureplay-oundsgray | easureplay-ouredsplay   |
+| strengthening    | engtheningstray      | engtheneningstra        |
+| thoughtfulness   | oughtfulnessthay     | oughtfulneststhay       |
+
+### Training Progress
+
+| Metric (40 steps = 1 epoch, 40 * 100 = 4K) | Validation | Training |
+|--------------------------------------------|------------|----------|
+| Loss                                       | ![train_loss](assets/train_loss.png) | ![val_loss](assets/val_loss.png) |
+| Accuracy                                   | ![train_acc](assets/train_acc.png)   | ![val_acc](assets/val_acc.png)   |
+| Learning Rate                              |            | ![lr](assets/lr.png)             |
 
 
-| layers |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| 2 | 0.086  |   0.071    |  0.842 |   0.935       |
-| 8 |   0.120   | 0.016  | 0.812  | 0.984  |
-
-The encoder and decoder layers of 2 each gives the better performance increasing the layers start to increase the training performance but deterioates the validation performance.
-
-
-## The ultimate beast model 
-
-64 hidden diamensions with 8 attention heads and 2 layers of encoder and decdoder each with training the positional encoders.
-
-Few small modifications we have done to improve the performace, Small change to the scheduler because we observered that the ReduceLROnPlateau will never reduce the lr becuase of lower threshold and increasing the threshold has unstudied effects on performance. Therefore we stick to CosineAnleaning as a scheduler as used by GPT-3 paper and we also train for 100 epochs as done by GPT and also the weight decay of 0.01. The only difference to GPT is we use accumulated gradients to account for variantion in size ( as our batches has same size ).
-
-The only change we make from going from small to large is number of layers. from 2 each to 4 each.
-
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Beast small ( 143K )| 0.025  | 0.004   |  0.970  | 1.000  |
-| Beast large ( 276 K ) | 0.036  | 0.006  |   0.964  |  1.000  |
-
-The beast small model makes only 3 mistakes
-
-| latin | true piglatin value | Wrong  translation |
-|---|---|---|
-|pleasure-grounds | easureplay-oundsgray | easureplay-ouredsplay |
-|strengthening | engtheningstray | engtheneningstra |
-|thoughtfulness |oughtfulnessthay | oughtfulneststhay |
-
-How did the training go?
-
-| Metric (40 steps = 1epoch 40*100 = 4K)   | validation  | training  |
-|---|---|---|
-|Loss |![train_loss](assets/train_loss.png)  | ![val_loss](assets/val_loss.png)|
-|Accuracy|![train_acc](assets/train_acc.png) | ![val_acc](assets/val_acc.png)|
-| Learning rate | | ![lr](assets/lr.png)|
 
 Few more corrections to the code:
 1. in pytorch lightning `scheduler` should be named to `lr_scheduler`
 2. self.model.eval() in generate else the test cases after the training will still be in train mode.
+3. accumulate gradients.
 
 
 # Mamba 
