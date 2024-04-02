@@ -341,21 +341,16 @@ Few more corrections to the code:
 
 # Mamba 
 
-We will start as usual, Tuning learning rate is very esential for getting the best performance from Mamba. We will tune the learning rate from 3e-4, however we found the learning rate is very small for mamba and we increase it to 3e-3 and found it to be ideal for out task. We use all the other parameters as default. And try to push the accuracy of the base model.
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Base | 0.237   | 0.003    |   0.654 |  0.996     |
 
-### Discretisation
 
-State space models 
+## Introduction
 
-| Model |  val loss | train loss| val accuracy  | train accuracy|
-|---|---|---|---|---|
-| Approx  zeroth order hold [^mamba] | 0.237   | 0.003    |   0.654 |  0.996     |
-| Exact zeroth order hold (equation 3) [^mamba]| 0.252  | 0.004    |    0.638 |  0.998     |
-| bi linear interpolation [^S4]| 0.175   | 0.002    |   0.833 | 0.998    |
+Similar to transformer, We study various properties of Mamba architecture.
+
+The core block of Mamba architecture or any RNN architecture is the state transition matrix. In experiments below we study how state transition matrix paramerterised by  $A, \nabla$ is responible for making the prediction. 
+
+One of the key take away from the experiments we perform on Mamba is that 
 
 
 
@@ -412,15 +407,34 @@ One small advantage of RNN is adaptability here in case - it also stops at -
 
 These set of experiments answer all the questions for us in SSMs.
 
+We will start as usual, Tuning learning rate is very esential for getting the best performance from Mamba. We will tune the learning rate from 3e-4, however we found the learning rate is very small for mamba and we increase it to 3e-3 and found it to be ideal for out task. We use all the other parameters as default. And try to push the accuracy of the base model.
 
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Base | 0.237   | 0.003    |   0.654 |  0.996     |
 
+### Discretisation
+
+State space models 
+
+| Model |  val loss | train loss| val accuracy  | train accuracy|
+|---|---|---|---|---|
+| Approx  zeroth order hold [^mamba] | 0.237   | 0.003    |   0.654 |  0.996     |
+| Exact zeroth order hold (equation 3) [^mamba]| 0.252  | 0.004    |    0.638 |  0.998     |
+| bi linear interpolation [^S4]| 0.175   | 0.002    |   0.833 | 0.998    |
 
 
 ### P-scan vs S-scan
 
 We will compare the time we improved by implementing pscan vs sscan with the torch.compile we see that pscan perform significantly better but why there is a difference in performance when we run without compile and also not sure on the behaviour of torch.compile but as we run with compile we see significant boost in time when pscan is used compared to scan.
 
+
 ![Comparing test time](assets/time.png)
+
+**precesion of pscan and scan**
+As pscan is an parallel implementation of sscan, Due to the log and exponentional the precision comes into play, when dealing with large numbers. Also we are approximating $\log{0} = -12$. This leads to not exact solution, we measure how pscan and scan deviate. For smaller context length and logits distributed as $\mathcal{N}(0,I)$, the error grows with increasing context length as well as deviating form normal behaviour of logits. 
+
+![precision of Psacn and Sscan](assets/precision.png)
 
 
 Other minor experiments that didnot lead significant outcomes

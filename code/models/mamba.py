@@ -170,7 +170,7 @@ class MambaBlock(nn.Module):
     #@torch.compile
     def pscan(self, u, dt, A, B, C, D):
 
-        dA,dB_u = self.bilinear(A,B,dt,u) # #self.zeroth_order_exact(A,B,dt,u) #
+        dA,dB_u = self.zeroth_order_approx(A,B,dt,u) # #self.zeroth_order_exact(A,B,dt,u) #
         
 
         dB_u_log = complex_log(dB_u)
@@ -342,7 +342,8 @@ if __name__ == '__main__':
                 curr2.append(end_time - start_time)
 
 
-            timing[-1].append([np.mean(curr1),np.mean(curr2)])  
+            timing[-1].append([np.mean(curr1),np.mean(curr2)]) 
+            print((y1-y2).abs().max())
 
                 
         
