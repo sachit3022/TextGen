@@ -3,6 +3,12 @@
 
 ## Instructor: Vishnu Boddeti
 
+## Grading
+Transformers: 5
+Mamba: 3
+Bonus: 2
+Total: 10
+
 ### Instructions
 
 - Submit solutions by directly editing this markdown file. Submissions in other formats will not be graded.
