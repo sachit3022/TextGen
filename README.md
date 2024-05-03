@@ -334,10 +334,7 @@ More details on training
 | Learning rate | | ![lr](assets/mamba_lr.png)|
 
 
-### Submission
-
-- Edited `README.md` file containing your answers to the conceptual questions, plots, and results with explanations.
-
+### References
 [^sutskever2014sequence]: Ilya Sutskever, Oriol Vinyals, and Quoc V Le. Sequence to sequence learning with neural networks. In Advances in Neural Information Processing Systems, pages 3104–3112, 2014.
 
 [^cho2014learning]: Kyunghyun Cho, Bart Van Merri¨enboer, Caglar Gulcehre, Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and Yoshua Bengio. Learning phrase representations using rnn encoder-decoder for statistical machine translation. arXiv preprint arXiv:1406.1078, 2014.
